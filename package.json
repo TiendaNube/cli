@@ -1,0 +1,67 @@
+{
+	"name": "@tiendanube/cli",
+	"version": "2.0.2",
+	"description": "A command-line interface tool to interact with Nuvemshop/Tiendanube services.",
+	"main": "./dist/cli.js",
+	"scripts": {
+		"build": "tsup",
+		"lint": "biome check src/*",
+		"lint:fix": "biome check --write src/*",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:coverage": "vitest run --coverage",
+		"local:reset": "npm uninstall -g @tiendanube/cli || true; npm run test && npm run build && npm link",
+		"local:check": "npm run lint && npm run test && npm run build",
+		"prepare": "husky"
+	},
+	"bin": {
+		"tiendanube": "dist/cli.js",
+		"nuvemshop": "dist/cli.js"
+	},
+	"files": [
+		"./dist"
+	],
+	"publishConfig": {
+		"access": "public"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/TiendaNube/cli.git"
+	},
+	"engines": {
+		"node": ">=24.15.0"
+	},
+	"keywords": [
+		"tiendanube",
+		"nuvemshop",
+		"cli",
+		"theme",
+		"development",
+		"ftp",
+		"nubesdk"
+	],
+	"author": "Nuvemshop/Tiendanube",
+	"license": "MIT",
+	"homepage": "https://www.nuvemshop.com.br",
+	"type": "module",
+	"dependencies": {
+		"basic-ftp": "^6.0.0",
+		"chalk": "^5.6.2",
+		"chokidar": "^5.0.0",
+		"commander": "^14.0.3",
+		"inquirer": "^13.3.2",
+		"puppeteer": "^24.40.0",
+		"readdirp": "^5.0.0",
+		"update-notifier": "^7.3.1"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "1.8.3",
+		"@types/node": "^25.5.0",
+		"@types/update-notifier": "^6.0.8",
+		"@vitest/coverage-v8": "^3.1.1",
+		"husky": "^9.1.7",
+		"tsup": "^8.3.5",
+		"typescript": "^6.0.2",
+		"vitest": "^3.1.1"
+	}
+}

@@ -1,0 +1,135 @@
+{
+	"groups": {
+		"before_main_content": {
+			"slotNames": ["before_main_content"]
+		},
+		"after_header": {
+			"slotNames": ["after_header"]
+		},
+		"before_footer": {
+			"slotNames": ["before_footer"]
+		},
+		"product_grid_item_image": {
+			"slotNames": [
+				"product_grid_item_image_top_left",
+				"product_grid_item_image_top_right",
+				"product_grid_item_image_bottom_left",
+				"product_grid_item_image_bottom_right",
+				"product_grid_item_image_top_center",
+				"product_grid_item_image_bottom_center",
+				"product_grid_item_image_center_left",
+				"product_grid_item_image_center_right",
+				"product_grid_item_image_center_center"
+			]
+		},
+		"product_detail_image": {
+			"slotNames": [
+				"product_detail_image_top_left",
+				"product_detail_image_top_right",
+				"product_detail_image_bottom_left",
+				"product_detail_image_bottom_right",
+				"product_detail_image_top_center",
+				"product_detail_image_bottom_center",
+				"product_detail_image_center_left",
+				"product_detail_image_center_right",
+				"product_detail_image_center_center"
+			]
+		},
+		"before_product_grid_item_name": {
+			"slotNames": ["before_product_grid_item_name"]
+		},
+		"after_product_grid_item_name": {
+			"slotNames": ["after_product_grid_item_name"]
+		},
+		"before_product_grid_item_price": {
+			"slotNames": ["before_product_grid_item_price"]
+		},
+		"after_product_grid_item_price": {
+			"slotNames": ["after_product_grid_item_price"]
+		},
+		"before_product_detail_name": {
+			"slotNames": ["before_product_detail_name"]
+		},
+		"after_product_detail_name": {
+			"slotNames": ["after_product_detail_name"]
+		},
+		"before_product_detail_price": {
+			"slotNames": ["before_product_detail_price"]
+		},
+		"after_product_detail_price": {
+			"slotNames": ["after_product_detail_price"]
+		},
+		"before_product_detail_add_to_cart": {
+			"slotNames": ["before_product_detail_add_to_cart"]
+		},
+		"after_product_detail_add_to_cart": {
+			"slotNames": ["after_product_detail_add_to_cart"]
+		},
+		"after_product_description": {
+			"slotNames": ["after_product_description"]
+		},
+		"before_line_item": {
+			"slotNames": ["before_line_item"]
+		},
+		"before_line_items": {
+			"slotNames": ["before_line_items"]
+		},
+		"after_line_items": {
+			"slotNames": ["after_line_items"]
+		},
+		"after_cart_summary": {
+			"slotNames": ["after_cart_summary"]
+		},
+		"before_go_to_checkout": {
+			"slotNames": ["before_go_to_checkout"]
+		},
+		"after_go_to_checkout": {
+			"slotNames": ["after_go_to_checkout"]
+		},
+		"after_section_newsletter": {
+			"slotNames": ["after_section_newsletter"]
+		},
+		"after_section_products_sale": {
+			"slotNames": ["after_section_products_sale"]
+		},
+		"before_section_newsletter": {
+			"slotNames": ["before_section_newsletter"]
+		},
+		"before_section_products_sale": {
+			"slotNames": ["before_section_products_sale"]
+		}
+	},
+	"legacyTypeToGroup": {
+		"main": "before_main_content",
+		"header-after": "after_header",
+		"footer-before": "before_footer",
+		"product-grid-item-image": "product_grid_item_image",
+		"product-grid-item-before-name": "before_product_grid_item_name",
+		"product-grid-item-after-name": "after_product_grid_item_name",
+		"product-grid-item-before-price": "before_product_grid_item_price",
+		"product-grid-item-after-price": "after_product_grid_item_price",
+		"product-before-name": "before_product_detail_name",
+		"product-after-name": "after_product_detail_name",
+		"product-before-price": "before_product_detail_price",
+		"product-after-price": "after_product_detail_price",
+		"product-before-form": "before_product_detail_add_to_cart",
+		"product-before-add-to-cart": "before_product_detail_add_to_cart",
+		"product-after-add-to-cart": "after_product_detail_add_to_cart",
+		"product-after-description": "after_product_description",
+		"cart-before-line-items": "before_line_items",
+		"cart-after-line-items": "after_line_items",
+		"cart-after-summary": "after_cart_summary",
+		"cart-before-checkout-start": "before_go_to_checkout",
+		"cart-after-checkout-start": "after_go_to_checkout",
+		"before_add_to_cart_pdp": "before_product_detail_add_to_cart",
+		"after_add_to_cart_pdp": "after_product_detail_add_to_cart"
+	},
+	"deprecatedSlotToCanonical": {
+		"before_add_to_cart_pdp": "before_product_detail_add_to_cart",
+		"after_add_to_cart_pdp": "after_product_detail_add_to_cart",
+		"before_price_pdp": "before_product_detail_price",
+		"after_price_pdp": "after_product_detail_price",
+		"cart_line_item_top": "before_line_item",
+		"before_start_checkout_button": "before_go_to_checkout"
+	}
+}
