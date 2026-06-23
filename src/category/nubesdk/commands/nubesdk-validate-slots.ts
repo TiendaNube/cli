@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { Chalk } from "chalk";
 import type { Command } from "commander";
-import { NubeCliLogger } from "../../../nube-cli-logger";
+import { CliLogger } from "../../../cli-logger";
 import { ScanThemeForNubesdkSlots } from "../scan-theme-slots";
 import {
 	GetAllSlotNamesSorted,
@@ -25,7 +25,7 @@ type ValidateOptions = {
 };
 
 export class NubesdkValidateSlotsCommand {
-	private logger = new NubeCliLogger();
+	private logger = new CliLogger();
 	private chalk = new Chalk();
 
 	Bind(command: Command): void {

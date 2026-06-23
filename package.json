@@ -1,6 +1,6 @@
 {
 	"name": "@tiendanube/cli",
-	"version": "2.0.2",
+	"version": "2.0.3",
 	"description": "A command-line interface tool to interact with Nuvemshop/Tiendanube services.",
 	"main": "./dist/cli.js",
 	"scripts": {
@@ -45,11 +45,11 @@
 	"homepage": "https://www.nuvemshop.com.br",
 	"type": "module",
 	"dependencies": {
+		"@clack/prompts": "^1.5.1",
 		"basic-ftp": "^6.0.0",
 		"chalk": "^5.6.2",
 		"chokidar": "^5.0.0",
 		"commander": "^14.0.3",
-		"inquirer": "^13.3.2",
 		"puppeteer": "^24.40.0",
 		"readdirp": "^5.0.0",
 		"update-notifier": "^7.3.1"

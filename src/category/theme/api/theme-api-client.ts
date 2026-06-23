@@ -1,5 +1,5 @@
 import packageJson from "../../../../package.json" with { type: "json" };
-import { NubeCliLogger } from "../../../nube-cli-logger";
+import { CliLogger } from "../../../cli-logger";
 import {
 	THEME_API_BATCH_MAX_BODY_BYTES,
 	THEME_API_HTTP_STATUS_SERVICE_UNAVAILABLE,
@@ -123,7 +123,7 @@ export async function mapPool<T, R>(
 }
 
 export class ThemeApiClient {
-	private logger = new NubeCliLogger();
+	private logger = new CliLogger();
 	private apiBaseUrl: string;
 	private publicApiToken: string;
 	private storeId: string;
@@ -316,6 +316,7 @@ export class ThemeApiClient {
 	async createInstallation(payload: {
 		theme_code: string;
 		title: string;
+		theme_variant?: string;
 	}): Promise<unknown> {
 		const url = this.installationsBase();
 		this.log(`POST ${url}`);

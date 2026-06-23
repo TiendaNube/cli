@@ -1,9 +1,10 @@
 import type { Command } from "commander";
 import { Option } from "commander";
+import { CliError, runAction } from "../../../../cli-action";
 import { getCliExecutableName } from "../../../../cli-executable-name";
-import { NubeCliLogger } from "../../../../nube-cli-logger";
+import { CliLogger } from "../../../../cli-logger";
+import { resolveThemeIdOrFail } from "../../theme-id-resolver";
 import { ThemeWorkspaceConfigManager } from "../../theme-workspace-config-manager";
-import { resolveThemeIdWithProductive } from "../../theme-workspace-types";
 import {
 	addHiddenThemeApiHeaderOption,
 	addHiddenThemeApiUrlOption,
@@ -27,35 +28,37 @@ type PreviewUrlOptions = {
 };
 
 export class ThemeApiInstallationPreviewCommand {
-	private logger = new NubeCliLogger();
+	private logger = new CliLogger();
 	private workspace = new ThemeWorkspaceConfigManager();
 
-	private async Execute(options: PreviewUrlOptions): Promise<void> {
+	private async Execute(
+		options: PreviewUrlOptions,
+		command: Command,
+	): Promise<void> {
 		const loaded = resolveApiCredentials({
 			token: options.token,
 			workspace: this.workspace,
 		});
 		if (!loaded.success) {
-			this.logger.Error(loaded.error);
-			return;
+			throw new CliError(loaded.error);
 		}
 		const { config } = loaded;
 		if (options.installationId !== undefined && options.themeId === undefined) {
 			warnDeprecatedOption("--installation-id", "--theme-id");
 		}
-		const themeId = await resolveThemeIdWithProductive({
-			options: {
-				themeId: options.themeId ?? options.installationId,
-				published: options.published,
-			},
+		const themeId = await resolveThemeIdOrFail({
+			cmd: command,
+			options,
 			config,
 			getClient: () => {
 				const baseUrl = resolveThemeApiBaseUrl({
 					configUrl: config.apiBaseUrl,
 					cliUrl: options.apiUrl,
 				});
-				const extraHeaders =
-					resolveExtraHeadersFromCli(options.header, this.logger) ?? {};
+				const extraHeaders = resolveExtraHeadersFromCli(
+					options.header,
+					this.logger,
+				);
 				return new ThemeApiClient({
 					apiBaseUrl: baseUrl,
 					publicApiToken: config.publicApiToken,
@@ -64,33 +67,17 @@ export class ThemeApiInstallationPreviewCommand {
 					extraHeaders,
 				});
 			},
-			logger: this.logger,
 		});
-		if (!themeId) {
-			if (!options.published) {
-				const cli = getCliExecutableName();
-				this.logger.Error(
-					`No theme id: pass --theme-id, use --published, or run ${cli} theme pull --theme-id <id> (saves to .nuvem).`,
-				);
-			}
-			return;
-		}
 		const storeUrl = config.storeUrl?.trim();
 		if (!storeUrl) {
 			const cli = getCliExecutableName();
-			this.logger.Error(
+			throw new CliError(
 				`No store_url in .nuvem: re-run ${cli} theme authorize to save your storefront URL (e.g. https://your-store.nuvemshop.com.br).`,
 			);
-			return;
 		}
 
-		try {
-			const url = buildThemeInstallationPreviewUrl(storeUrl, themeId);
-			this.logger.Log(url);
-		} catch (err) {
-			const msg = err instanceof Error ? err.message : String(err);
-			this.logger.Error(msg);
-		}
+		const url = buildThemeInstallationPreviewUrl(storeUrl, themeId);
+		this.logger.Log(url);
 	}
 
 	Bind(command: Command): void {
@@ -113,8 +100,10 @@ export class ThemeApiInstallationPreviewCommand {
 		addThemeApiTokenOption(previewCmd);
 		addHiddenThemeApiUrlOption(previewCmd);
 		addHiddenThemeApiHeaderOption(previewCmd);
-		previewCmd.action(async (opts: PreviewUrlOptions) => {
-			await this.Execute(opts);
-		});
+		previewCmd.action(
+			runAction((opts: PreviewUrlOptions, command: Command) =>
+				this.Execute(opts, command),
+			),
+		);
 	}
 }

@@ -1,10 +1,11 @@
 import type { Command } from "commander";
 import { Option } from "commander";
-import { getCliExecutableName } from "../../../../cli-executable-name";
-import { NubeCliInteraction } from "../../../../nube-cli-interaction";
-import { NubeCliLogger } from "../../../../nube-cli-logger";
+import { CliError, runAction } from "../../../../cli-action";
+import { CliInteraction } from "../../../../cli-interaction";
+import { CliLogger } from "../../../../cli-logger";
+import { confirmOrAbort } from "../../../../interactivity";
+import { resolveThemeIdOrFail } from "../../theme-id-resolver";
 import { ThemeWorkspaceConfigManager } from "../../theme-workspace-config-manager";
-import { resolveThemeId } from "../../theme-workspace-types";
 import {
 	addHiddenThemeApiHeaderOption,
 	addHiddenThemeApiUrlOption,
@@ -23,47 +24,28 @@ type DeleteOptions = {
 	apiUrl?: string;
 	header?: string[];
 	json: boolean;
-	y: boolean;
 	v: boolean;
 };
 
 export class ThemeApiInstallationDeleteCommand {
-	private logger = new NubeCliLogger();
-	private interaction = new NubeCliInteraction();
+	private logger = new CliLogger();
+	private interaction = new CliInteraction();
 	private workspace = new ThemeWorkspaceConfigManager();
 
-	private async Execute(options: DeleteOptions): Promise<void> {
+	private async Execute(
+		options: DeleteOptions,
+		command: Command,
+	): Promise<void> {
 		const loaded = resolveApiCredentials({
 			token: options.token,
 			workspace: this.workspace,
 		});
 		if (!loaded.success) {
-			this.logger.Error(loaded.error);
-			return;
+			throw new CliError(loaded.error);
 		}
 		const { config } = loaded;
 		if (options.installationId !== undefined && options.themeId === undefined) {
 			warnDeprecatedOption("--installation-id", "--theme-id");
-		}
-		const themeId = resolveThemeId(
-			options.themeId ?? options.installationId,
-			config,
-		);
-		if (!themeId) {
-			const cli = getCliExecutableName();
-			this.logger.Error(
-				`No theme id: pass --theme-id or run ${cli} theme pull --theme-id <id> (saves to .nuvem).`,
-			);
-			return;
-		}
-
-		if (!options.y) {
-			const confirm = await this.interaction.Confirm(
-				`This will permanently delete theme ${themeId} from the store. This cannot be undone. Do you want to continue?`,
-			);
-			if (!confirm) {
-				return;
-			}
 		}
 
 		const baseUrl = resolveThemeApiBaseUrl({
@@ -74,9 +56,6 @@ export class ThemeApiInstallationDeleteCommand {
 			options.header,
 			this.logger,
 		);
-		if (extraHeaders === null) {
-			return;
-		}
 		const client = new ThemeApiClient({
 			apiBaseUrl: baseUrl,
 			publicApiToken: config.publicApiToken,
@@ -85,21 +64,33 @@ export class ThemeApiInstallationDeleteCommand {
 			extraHeaders,
 		});
 
-		try {
-			const result = await client.deleteInstallation(themeId);
-			if (options.json) {
-				const payload =
-					result !== null && result !== undefined && result !== ""
-						? result
-						: { message: `Theme ${themeId} deleted successfully.` };
-				process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
-				return;
-			}
-			this.logger.Log(`Theme ${themeId} deleted successfully.`);
-		} catch (err) {
-			const msg = err instanceof Error ? err.message : String(err);
-			this.logger.Error(msg);
+		const themeId = await resolveThemeIdOrFail({
+			cmd: command,
+			options,
+			config,
+			getClient: () => client,
+			supportsPublished: false,
+		});
+
+		const confirmed = await confirmOrAbort(
+			command,
+			this.interaction,
+			`This will permanently delete theme ${themeId} from the store. This cannot be undone. Do you want to continue?`,
+		);
+		if (!confirmed) {
+			return;
 		}
+
+		const result = await client.deleteInstallation(themeId);
+		if (options.json) {
+			const payload =
+				result !== null && result !== undefined && result !== ""
+					? result
+					: { message: `Theme ${themeId} deleted successfully.` };
+			process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
+			return;
+		}
+		this.logger.Log(`Theme ${themeId} deleted successfully.`);
 	}
 
 	Bind(command: Command): void {
@@ -120,11 +111,12 @@ export class ThemeApiInstallationDeleteCommand {
 		addHiddenThemeApiUrlOption(deleteCmd);
 		addHiddenThemeApiHeaderOption(deleteCmd);
 		deleteCmd
-			.option("-y", "Skip confirmation prompt", false)
 			.option("--json", "Use machine-readable JSON output", false)
 			.option("-v", "Enable verbose logging", false)
-			.action(async (opts: DeleteOptions) => {
-				await this.Execute(opts);
-			});
+			.action(
+				runAction((opts: DeleteOptions, command: Command) =>
+					this.Execute(opts, command),
+				),
+			);
 	}
 }

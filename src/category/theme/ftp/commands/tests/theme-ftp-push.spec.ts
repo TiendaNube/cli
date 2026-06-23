@@ -2,7 +2,11 @@ import "./theme-ftp-command-test-mocks";
 import { beforeEach, describe, expect, it } from "vitest";
 import { ThemeFtpPushCommand } from "../theme-ftp-push";
 import { parseWithTail, programWithFtpSubcommand } from "./helpers";
-import { ftpCmdMocks, resetFtpCmdMocks } from "./theme-ftp-command-test-mocks";
+import {
+	forceInteractiveTestEnv,
+	ftpCmdMocks,
+	resetFtpCmdMocks,
+} from "./theme-ftp-command-test-mocks";
 
 describe("ThemeFtpPushCommand", () => {
 	beforeEach(() => {
@@ -81,6 +85,7 @@ describe("ThemeFtpPushCommand", () => {
 
 	it("shows confirmation prompt when --force is used without -y", async () => {
 		ftpCmdMocks.isSet = true;
+		forceInteractiveTestEnv();
 		ftpCmdMocks.confirm.mockResolvedValueOnce(false);
 		const program = programWithFtpSubcommand((c) => {
 			new ThemeFtpPushCommand().Bind(c);

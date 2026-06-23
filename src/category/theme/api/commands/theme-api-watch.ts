@@ -4,10 +4,11 @@ import chokidar from "chokidar";
 import type { Command } from "commander";
 import { Option } from "commander";
 import puppeteer, { type Browser, type Page } from "puppeteer";
+import { CliError, runAction } from "../../../../cli-action";
 import { getCliExecutableName } from "../../../../cli-executable-name";
-import { NubeCliLogger } from "../../../../nube-cli-logger";
+import { CliLogger } from "../../../../cli-logger";
+import { resolveThemeIdOrFail } from "../../theme-id-resolver";
 import { ThemeWorkspaceConfigManager } from "../../theme-workspace-config-manager";
-import { resolveThemeIdWithProductive } from "../../theme-workspace-types";
 import {
 	addHiddenThemeApiHeaderOption,
 	addHiddenThemeApiUrlOption,
@@ -64,7 +65,7 @@ type WatchOptions = {
 };
 
 export class ThemeApiWatchCommand {
-	private logger = new NubeCliLogger();
+	private logger = new CliLogger();
 	private workspace = new ThemeWorkspaceConfigManager();
 
 	private RunWithTrace = async (action: () => Promise<void>) => {
@@ -108,14 +109,16 @@ export class ThemeApiWatchCommand {
 		}
 	}
 
-	private async Execute(options: WatchOptions): Promise<void> {
+	private async Execute(
+		options: WatchOptions,
+		command: Command,
+	): Promise<void> {
 		const loaded = resolveApiCredentials({
 			token: options.token,
 			workspace: this.workspace,
 		});
 		if (!loaded.success) {
-			this.logger.Error(loaded.error);
-			return;
+			throw new CliError(loaded.error);
 		}
 		const { config } = loaded;
 		if (options.installationId !== undefined && options.themeId === undefined) {
@@ -129,9 +132,6 @@ export class ThemeApiWatchCommand {
 			options.header,
 			this.logger,
 		);
-		if (extraHeaders === null) {
-			return;
-		}
 		const client = new ThemeApiClient({
 			apiBaseUrl: baseUrl,
 			publicApiToken: config.publicApiToken,
@@ -140,33 +140,14 @@ export class ThemeApiWatchCommand {
 			extraHeaders,
 		});
 
-		const themeId = await resolveThemeIdWithProductive({
-			options: {
-				themeId: options.themeId ?? options.installationId,
-				published: options.published,
-			},
+		const themeId = await resolveThemeIdOrFail({
+			cmd: command,
+			options,
 			config,
 			getClient: () => client,
-			logger: this.logger,
 		});
-		if (!themeId) {
-			if (!options.published) {
-				const cli = getCliExecutableName();
-				this.logger.Error(
-					`No theme id: pass --theme-id, use --published, or run ${cli} theme pull --theme-id <id> (saves to .nuvem).`,
-				);
-			}
-			return;
-		}
 
-		let installationMeta: unknown;
-		try {
-			installationMeta = await client.getInstallation(themeId);
-		} catch (err) {
-			const msg = err instanceof Error ? err.message : String(err);
-			this.logger.Error(msg);
-			return;
-		}
+		const installationMeta: unknown = await client.getInstallation(themeId);
 		const forked = isInstallationForked(installationMeta);
 
 		const storeUrl = config.storeUrl?.trim();
@@ -345,8 +326,10 @@ export class ThemeApiWatchCommand {
 				"Do not open the store in a browser with automatic reloading, only watch for file changes",
 			)
 			.option("-v", "Enable verbose logging", false)
-			.action(async (options: WatchOptions) => {
-				await this.Execute(options);
-			});
+			.action(
+				runAction((options: WatchOptions, command: Command) =>
+					this.Execute(options, command),
+				),
+			);
 	}
 }

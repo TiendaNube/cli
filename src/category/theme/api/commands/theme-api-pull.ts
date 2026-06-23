@@ -2,11 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Command } from "commander";
 import { Option } from "commander";
-import { getCliExecutableName } from "../../../../cli-executable-name";
-import { NubeCliInteraction } from "../../../../nube-cli-interaction";
-import { NubeCliLogger } from "../../../../nube-cli-logger";
+import { CliError, runAction } from "../../../../cli-action";
+import { CliInteraction } from "../../../../cli-interaction";
+import { CliLogger } from "../../../../cli-logger";
+import { confirmOrAbort } from "../../../../interactivity";
+import { resolveThemeIdOrFail } from "../../theme-id-resolver";
 import { ThemeWorkspaceConfigManager } from "../../theme-workspace-config-manager";
-import { resolveThemeIdWithProductive } from "../../theme-workspace-types";
 import {
 	addHiddenThemeApiHeaderOption,
 	addHiddenThemeApiUrlOption,
@@ -43,7 +44,6 @@ type PullOptions = {
 	token?: string;
 	apiUrl?: string;
 	header?: string[];
-	y: boolean;
 	v: boolean;
 };
 
@@ -52,18 +52,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export class ThemeApiPullCommand {
-	private logger = new NubeCliLogger();
-	private interaction = new NubeCliInteraction();
+	private logger = new CliLogger();
+	private interaction = new CliInteraction();
 	private workspace = new ThemeWorkspaceConfigManager();
 
-	private async Execute(options: PullOptions): Promise<void> {
+	private async Execute(options: PullOptions, command: Command): Promise<void> {
 		const loaded = resolveApiCredentials({
 			token: options.token,
 			workspace: this.workspace,
 		});
 		if (!loaded.success) {
-			this.logger.Error(loaded.error);
-			return;
+			throw new CliError(loaded.error);
 		}
 		const { config } = loaded;
 		if (options.installationId !== undefined && options.themeId === undefined) {
@@ -77,9 +76,6 @@ export class ThemeApiPullCommand {
 			options.header,
 			this.logger,
 		);
-		if (extraHeaders === null) {
-			return;
-		}
 		const client = new ThemeApiClient({
 			apiBaseUrl: baseUrl,
 			publicApiToken: config.publicApiToken,
@@ -88,34 +84,22 @@ export class ThemeApiPullCommand {
 			extraHeaders,
 		});
 
-		const themeId = await resolveThemeIdWithProductive({
-			options: {
-				themeId: options.themeId ?? options.installationId,
-				published: options.published,
-			},
+		const themeId = await resolveThemeIdOrFail({
+			cmd: command,
+			options,
 			config,
 			getClient: () => client,
-			logger: this.logger,
 		});
-		if (!themeId) {
-			if (!options.published) {
-				const cli = getCliExecutableName();
-				this.logger.Error(
-					`No theme id: pass --theme-id, use --published, or run ${cli} theme pull --theme-id <id> (saves to .nuvem).`,
-				);
-			}
-			return;
-		}
 
 		const themeEntries = listThemeEntries(".");
 		if (themeEntries.length > 0) {
-			if (!options.y) {
-				const confirm = await this.interaction.Confirm(
-					`Current directory has ${themeEntries.length} non-hidden file(s)/folder(s) that will be deleted before pulling (hidden entries like .nuvem and .git are preserved). Do you want to continue?`,
-				);
-				if (!confirm) {
-					return;
-				}
+			const confirmed = await confirmOrAbort(
+				command,
+				this.interaction,
+				`Current directory has ${themeEntries.length} non-hidden file(s)/folder(s) that will be deleted before pulling (hidden entries like .nuvem and .git are preserved). Do you want to continue?`,
+			);
+			if (!confirmed) {
+				return;
 			}
 			cleanThemeWorkspace(".", themeEntries);
 		}
@@ -129,14 +113,7 @@ export class ThemeApiPullCommand {
 			return parseGetFilesResponse(raw);
 		};
 
-		let firstPage: ReturnType<typeof parseGetFilesResponse>;
-		try {
-			firstPage = await fetchPage(0);
-		} catch (err) {
-			const msg = err instanceof Error ? err.message : String(err);
-			this.logger.Error(msg);
-			return;
-		}
+		const firstPage = await fetchPage(0);
 		const installation: unknown = firstPage.installation;
 		const total = firstPage.total;
 		const allFiles: RemoteThemeFile[] = [...firstPage.files];
@@ -149,18 +126,11 @@ export class ThemeApiPullCommand {
 				remainingOffsets.push(off);
 			}
 			if (remainingOffsets.length > 0) {
-				let pages: ReturnType<typeof parseGetFilesResponse>[];
-				try {
-					pages = await mapPool(
-						remainingOffsets,
-						THEME_API_MAX_PARALLEL,
-						(off) => fetchPage(off),
-					);
-				} catch (err) {
-					const msg = err instanceof Error ? err.message : String(err);
-					this.logger.Error(msg);
-					return;
-				}
+				const pages = await mapPool(
+					remainingOffsets,
+					THEME_API_MAX_PARALLEL,
+					(off) => fetchPage(off),
+				);
 				for (const page of pages) {
 					allFiles.push(...page.files);
 				}
@@ -169,14 +139,7 @@ export class ThemeApiPullCommand {
 			// Sequential fallback: no `total`, iterate until a short page.
 			let off = limit;
 			for (;;) {
-				let page: ReturnType<typeof parseGetFilesResponse>;
-				try {
-					page = await fetchPage(off);
-				} catch (err) {
-					const msg = err instanceof Error ? err.message : String(err);
-					this.logger.Error(msg);
-					return;
-				}
+				const page = await fetchPage(off);
 				allFiles.push(...page.files);
 				if (page.files.length < limit) {
 					break;
@@ -192,8 +155,7 @@ export class ThemeApiPullCommand {
 				continue;
 			}
 			if (!isPathInsideThemeRoot(cwd, rel)) {
-				this.logger.Error(`Refusing to write unsafe path: ${rel}`);
-				return;
+				throw new CliError(`Refusing to write unsafe path: ${rel}`);
 			}
 			const dest = path.join(cwd, rel);
 			const dir = path.dirname(dest);
@@ -263,10 +225,11 @@ export class ThemeApiPullCommand {
 		addHiddenThemeApiUrlOption(pullCmd);
 		addHiddenThemeApiHeaderOption(pullCmd);
 		pullCmd
-			.option("-y", "Skip confirmation prompt", false)
 			.option("-v", "Enable verbose logging", false)
-			.action(async (opts: PullOptions) => {
-				await this.Execute(opts);
-			});
+			.action(
+				runAction((opts: PullOptions, command: Command) =>
+					this.Execute(opts, command),
+				),
+			);
 	}
 }

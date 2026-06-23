@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { describe, expect, it, vi } from "vitest";
-import { NubeCliLogger } from "../../../nube-cli-logger";
+import { CliLogger } from "../../../cli-logger";
 import { ThemeCommands } from "../theme-commands";
 
 const DEPRECATED_VERBS = [
@@ -36,7 +36,7 @@ describe("Deprecated 'theme installation' aliases", () => {
 		);
 	});
 
-	it("emits the deprecation warning via NubeCliLogger.Warn for each verb", () => {
+	it("emits the deprecation warning via CliLogger.Warn for each verb", () => {
 		const installation = findInstallationSubgroup();
 		const hooks = (
 			installation as unknown as {
@@ -51,7 +51,7 @@ describe("Deprecated 'theme installation' aliases", () => {
 
 		for (const verb of DEPRECATED_VERBS) {
 			const warnSpy = vi
-				.spyOn(NubeCliLogger.prototype, "Warn")
+				.spyOn(CliLogger.prototype, "Warn")
 				.mockImplementation(() => {});
 			hook(installation, new Command(verb));
 			expect(warnSpy).toHaveBeenCalledTimes(1);

@@ -1,5 +1,5 @@
 import type { Command } from "commander";
-import { NubeCliLogger } from "../../../nube-cli-logger";
+import { CliLogger } from "../../../cli-logger";
 import { ThemeApiInstallationCloneCommand } from "./commands/theme-api-installation-clone";
 import { ThemeApiInstallationCreateCommand } from "./commands/theme-api-installation-create";
 import { ThemeApiInstallationCurrentCommand } from "./commands/theme-api-installation-current";
@@ -10,7 +10,7 @@ import { ThemeApiInstallationPreviewCommand } from "./commands/theme-api-install
 import { ThemeApiInstallationPublishCommand } from "./commands/theme-api-installation-publish";
 
 export class ThemeApiDeprecatedInstallationCommands {
-	private logger = new NubeCliLogger();
+	private logger = new CliLogger();
 
 	Bind(theme: Command): void {
 		const installation = theme

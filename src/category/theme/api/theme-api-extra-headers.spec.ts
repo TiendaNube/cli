@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { NubeCliLogger } from "../../../nube-cli-logger";
+import { CliError } from "../../../cli-action";
+import { CliLogger } from "../../../cli-logger";
 import {
 	parseExtraHeaderEntries,
 	resolveExtraHeadersFromCli,
@@ -39,20 +40,20 @@ describe("parseExtraHeaderEntries", () => {
 
 describe("resolveExtraHeadersFromCli", () => {
 	it("returns an empty record for missing or empty input", () => {
-		const logger = new NubeCliLogger();
+		const logger = new CliLogger();
 		expect(resolveExtraHeadersFromCli(undefined, logger)).toEqual({});
 		expect(resolveExtraHeadersFromCli([], logger)).toEqual({});
 	});
 
-	it("returns null and logs an error when input is malformed", () => {
-		const logger = new NubeCliLogger();
-		const errorSpy = vi.spyOn(logger, "Error").mockImplementation(() => {});
-		expect(resolveExtraHeadersFromCli(["broken"], logger)).toBeNull();
-		expect(errorSpy).toHaveBeenCalledOnce();
+	it("throws CliError when input is malformed", () => {
+		const logger = new CliLogger();
+		expect(() => resolveExtraHeadersFromCli(["broken"], logger)).toThrow(
+			CliError,
+		);
 	});
 
 	it("warns when Authentication is overridden", () => {
-		const logger = new NubeCliLogger();
+		const logger = new CliLogger();
 		const warnSpy = vi.spyOn(logger, "Warn").mockImplementation(() => {});
 		const result = resolveExtraHeadersFromCli(
 			["Authentication: bearer x"],
@@ -63,7 +64,7 @@ describe("resolveExtraHeadersFromCli", () => {
 	});
 
 	it("does not warn for non-Authentication overrides", () => {
-		const logger = new NubeCliLogger();
+		const logger = new CliLogger();
 		const warnSpy = vi.spyOn(logger, "Warn").mockImplementation(() => {});
 		resolveExtraHeadersFromCli(["X-Trace: 123"], logger);
 		expect(warnSpy).not.toHaveBeenCalled();

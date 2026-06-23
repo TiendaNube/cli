@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { getCliExecutableName } from "../../../cli-executable-name";
-import { NubeCliInteraction } from "../../../nube-cli-interaction";
-import { NubeCliLogger } from "../../../nube-cli-logger";
+import { CliInteraction } from "../../../cli-interaction";
+import { CliLogger } from "../../../cli-logger";
 import { ThemeWorkspaceConfigManager } from "../theme-workspace-config-manager";
 import { ThemeApiClient } from "./theme-api-client";
 import {
@@ -22,8 +22,8 @@ export type SetupParams = {
 export async function executeThemeApiSetup(
 	params: SetupParams,
 ): Promise<boolean> {
-	const logger = new NubeCliLogger();
-	const interaction = new NubeCliInteraction();
+	const logger = new CliLogger();
+	const interaction = new CliInteraction();
 	const workspace = new ThemeWorkspaceConfigManager();
 
 	const files = fs.readdirSync(".");

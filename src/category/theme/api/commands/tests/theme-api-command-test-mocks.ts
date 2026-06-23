@@ -41,19 +41,40 @@ vi.mock("../../theme-api-client", async () => {
 	};
 });
 
-vi.mock("../../../../../nube-cli-logger", () => ({
-	NubeCliLogger: vi.fn().mockImplementation(() => ({
+vi.mock("../../../../../cli-logger", () => ({
+	CliLogger: vi.fn().mockImplementation(() => ({
 		Log: themeApiCmdMocks.log,
 		Error: themeApiCmdMocks.error,
 	})),
 }));
 
-vi.mock("../../../../../nube-cli-interaction", () => ({
-	NubeCliInteraction: vi.fn().mockImplementation(() => ({
+vi.mock("../../../../../cli-interaction", () => ({
+	CliInteraction: vi.fn().mockImplementation(() => ({
 		Confirm: themeApiCmdMocks.confirm,
 		Input: themeApiCmdMocks.input,
+		Password: themeApiCmdMocks.password,
 	})),
 }));
+
+function setTty(value: boolean): void {
+	Object.defineProperty(process.stdin, "isTTY", { value, configurable: true });
+	Object.defineProperty(process.stdout, "isTTY", { value, configurable: true });
+}
+
+/**
+ * Default test context: non-interactive (no TTY), mirroring CI. Missing required
+ * values error out and destructive confirms abort instead of prompting.
+ */
+export function forceNonInteractiveTestEnv(): void {
+	setTty(false);
+	process.env.CI = "";
+}
+
+/** Opt-in interactive context (TTY, not CI) for tests exercising prompts. */
+export function forceInteractiveTestEnv(): void {
+	setTty(true);
+	process.env.CI = "";
+}
 
 vi.mock("../../../../../cli-executable-name", () => ({
 	getCliExecutableName: () => cliExecutableNameMocks.getCliExecutableNameMock(),
@@ -62,6 +83,7 @@ vi.mock("../../../../../cli-executable-name", () => ({
 export { themeApiCmdMocks } from "./theme-api-cmd-mock-impl";
 
 export function resetThemeApiCmdMocks(): void {
+	forceNonInteractiveTestEnv();
 	themeApiCmdMocks.tryLoadResult = { success: false, error: "no config" };
 	themeApiCmdMocks.isSet = false;
 	themeApiCmdMocks.readWorkspaceReturn = {};
@@ -71,6 +93,7 @@ export function resetThemeApiCmdMocks(): void {
 	themeApiCmdMocks.confirm.mockReset();
 	themeApiCmdMocks.confirm.mockResolvedValue(true);
 	themeApiCmdMocks.input.mockReset().mockResolvedValue("");
+	themeApiCmdMocks.password.mockReset().mockResolvedValue("");
 	themeApiCmdMocks.listInstallations.mockReset();
 	themeApiCmdMocks.getInstallation.mockReset();
 	themeApiCmdMocks.createInstallation.mockReset();

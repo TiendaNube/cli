@@ -12,6 +12,7 @@ export const themeApiCmdMocks = {
 	error: vi.fn(),
 	confirm: vi.fn().mockResolvedValue(true),
 	input: vi.fn().mockResolvedValue(""),
+	password: vi.fn().mockResolvedValue(""),
 	listInstallations: vi.fn(),
 	getInstallation: vi.fn(),
 	createInstallation: vi.fn(),

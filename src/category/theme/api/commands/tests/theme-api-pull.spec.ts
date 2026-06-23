@@ -10,6 +10,7 @@ import {
 } from "./fs-readdir-sync-spy";
 import { parseWithTail, programWithThemeCommand } from "./helpers";
 import {
+	forceInteractiveTestEnv,
 	resetThemeApiCmdMocks,
 	themeApiCmdMocks,
 } from "./theme-api-command-test-mocks";
@@ -225,6 +226,7 @@ describe("ThemeApiPullCommand", () => {
 			},
 		};
 		readdirSpy.mockReturnValue(["assets", ".nuvem"]);
+		forceInteractiveTestEnv();
 		themeApiCmdMocks.confirm.mockResolvedValueOnce(false);
 		const rmSpy = vi.spyOn(fs, "rmSync").mockImplementation(() => undefined);
 

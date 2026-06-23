@@ -37,8 +37,8 @@ vi.mock("readdirp", () => ({
 	readdirpPromise: readdirMocks.readdirpPromise,
 }));
 
-vi.mock("../../../nube-cli-logger", () => ({
-	NubeCliLogger: class {
+vi.mock("../../../cli-logger", () => ({
+	CliLogger: class {
 		Log = vi.fn();
 		Error = vi.fn();
 	},
@@ -163,7 +163,7 @@ describe("ThemeFtpClient", () => {
 		expect(ftpMocks.access).not.toHaveBeenCalled();
 	});
 
-	it("RunFtpCommand surfaces errors from the FTP action", async () => {
+	it("RunFtpCommandWithRetries surfaces errors from the FTP action", async () => {
 		ftpMocks.uploadFrom.mockRejectedValueOnce(new Error("upload failed"));
 		const filePath = path.join(process.cwd(), "ok.tpl");
 		fs.writeFileSync(filePath, "x", "utf8");
@@ -173,6 +173,73 @@ describe("ThemeFtpClient", () => {
 			const result = await client.Upload(filePath);
 			expect(result.success).toBe(false);
 			expect(result.errorMessage).toBe("upload failed");
+		} finally {
+			relativeSpy.mockRestore();
+			fs.rmSync(filePath, { force: true });
+		}
+	});
+
+	// delay() is spied to resolve instantly so the backoff does not slow the tests.
+	type WithDelay = { delay: () => Promise<void> };
+
+	it("retries a transient transport error and eventually succeeds", async () => {
+		ftpMocks.uploadFrom
+			.mockRejectedValueOnce(new Error("Premature close"))
+			.mockRejectedValueOnce(new Error("Premature close"));
+		const filePath = path.join(process.cwd(), "ok.tpl");
+		fs.writeFileSync(filePath, "x", "utf8");
+		const relativeSpy = vi.spyOn(path, "relative").mockReturnValue("ok.tpl");
+		try {
+			const client = new ThemeFtpClient(baseConfig);
+			vi.spyOn(client as unknown as WithDelay, "delay").mockResolvedValue(
+				undefined,
+			);
+			const result = await client.Upload(filePath);
+			expect(result.success).toBe(true);
+			expect(ftpMocks.uploadFrom).toHaveBeenCalledTimes(3);
+		} finally {
+			relativeSpy.mockRestore();
+			fs.rmSync(filePath, { force: true });
+		}
+	});
+
+	it("retries a persistent transient error up to the max and then fails", async () => {
+		ftpMocks.uploadFrom.mockRejectedValue(new Error("ECONNRESET"));
+		const filePath = path.join(process.cwd(), "ok.tpl");
+		fs.writeFileSync(filePath, "x", "utf8");
+		const relativeSpy = vi.spyOn(path, "relative").mockReturnValue("ok.tpl");
+		try {
+			const client = new ThemeFtpClient(baseConfig);
+			vi.spyOn(client as unknown as WithDelay, "delay").mockResolvedValue(
+				undefined,
+			);
+			const result = await client.Upload(filePath);
+			expect(result.success).toBe(false);
+			expect(result.errorMessage).toBe("ECONNRESET");
+			// FTP_MAX_RETRIES = 3 → three attempts, no fourth.
+			expect(ftpMocks.uploadFrom).toHaveBeenCalledTimes(3);
+		} finally {
+			relativeSpy.mockRestore();
+			fs.rmSync(filePath, { force: true });
+		}
+	});
+
+	it("does not retry a non-retryable FTP error and fails on the first attempt", async () => {
+		ftpMocks.uploadFrom.mockRejectedValue(
+			Object.assign(new Error("550 Permission denied"), { code: 550 }),
+		);
+		const filePath = path.join(process.cwd(), "ok.tpl");
+		fs.writeFileSync(filePath, "x", "utf8");
+		const relativeSpy = vi.spyOn(path, "relative").mockReturnValue("ok.tpl");
+		try {
+			const client = new ThemeFtpClient(baseConfig);
+			const delaySpy = vi
+				.spyOn(client as unknown as WithDelay, "delay")
+				.mockResolvedValue(undefined);
+			const result = await client.Upload(filePath);
+			expect(result.success).toBe(false);
+			expect(ftpMocks.uploadFrom).toHaveBeenCalledTimes(1);
+			expect(delaySpy).not.toHaveBeenCalled();
 		} finally {
 			relativeSpy.mockRestore();
 			fs.rmSync(filePath, { force: true });
@@ -494,5 +561,62 @@ describe("ThemeFtpClient DownloadAll mtime preservation", () => {
 		const client = new ThemeFtpClient(baseConfig);
 		const result = await client.DownloadAll();
 		expect(result.success).toBe(true);
+	});
+});
+
+describe("ThemeFtpClient delete tolerance", () => {
+	let tmpDir: string;
+	let prev: string;
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+		ftpMocks.access.mockResolvedValue(undefined);
+		ftpMocks.lastMod.mockResolvedValue(new Date(0));
+		prev = process.cwd();
+	});
+
+	afterEach(() => {
+		process.chdir(prev);
+		if (tmpDir && fs.existsSync(tmpDir)) {
+			fs.rmSync(tmpDir, { recursive: true, force: true });
+		}
+	});
+
+	// Empty local tree + one remote file ⇒ ComputeDiff schedules that file for deletion.
+	const setupDeleteOnly = () => {
+		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "theme-ftp-delete-"));
+		process.chdir(tmpDir);
+		ftpMocks.list.mockResolvedValue([
+			{ type: 1, name: "gone.css", size: 5, modifiedAt: new Date() },
+		]);
+		readdirMocks.readdirpPromise.mockResolvedValue([]);
+	};
+
+	it("treats an already-removed file (FTP 450) as a successful delete", async () => {
+		setupDeleteOnly();
+		ftpMocks.remove.mockRejectedValue(
+			Object.assign(new Error("450 No permission to delete"), { code: 450 }),
+		);
+		const result = await new ThemeFtpClient(baseConfig).SyncAll();
+		expect(result.success).toBe(true);
+		expect(ftpMocks.remove).toHaveBeenCalledWith("/gone.css");
+	});
+
+	it("treats a missing file (FTP 550) as a successful delete", async () => {
+		setupDeleteOnly();
+		ftpMocks.remove.mockRejectedValue(
+			Object.assign(new Error("550 No such file"), { code: 550 }),
+		);
+		const result = await new ThemeFtpClient(baseConfig).SyncAll();
+		expect(result.success).toBe(true);
+	});
+
+	it("fails when delete returns a non-ignorable error", async () => {
+		setupDeleteOnly();
+		ftpMocks.remove.mockRejectedValue(
+			Object.assign(new Error("553 unexpected"), { code: 553 }),
+		);
+		const result = await new ThemeFtpClient(baseConfig).SyncAll();
+		expect(result.success).toBe(false);
 	});
 });

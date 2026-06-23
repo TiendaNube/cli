@@ -4,11 +4,12 @@ import path from "node:path";
 import type { Command } from "commander";
 import { Option } from "commander";
 import { readdirpPromise } from "readdirp";
-import { getCliExecutableName } from "../../../../cli-executable-name";
-import { NubeCliInteraction } from "../../../../nube-cli-interaction";
-import { NubeCliLogger } from "../../../../nube-cli-logger";
+import { CliError, runAction } from "../../../../cli-action";
+import { CliInteraction } from "../../../../cli-interaction";
+import { CliLogger } from "../../../../cli-logger";
+import { confirmOrAbort } from "../../../../interactivity";
+import { resolveThemeIdOrFail } from "../../theme-id-resolver";
 import { ThemeWorkspaceConfigManager } from "../../theme-workspace-config-manager";
-import { resolveThemeIdWithProductive } from "../../theme-workspace-types";
 import {
 	addHiddenThemeApiHeaderOption,
 	addHiddenThemeApiUrlOption,
@@ -82,24 +83,22 @@ type PushOptions = {
 	token?: string;
 	apiUrl?: string;
 	header?: string[];
-	y: boolean;
 	v: boolean;
 	force: boolean;
 };
 
 export class ThemeApiPushCommand {
-	private logger = new NubeCliLogger();
-	private interaction = new NubeCliInteraction();
+	private logger = new CliLogger();
+	private interaction = new CliInteraction();
 	private workspace = new ThemeWorkspaceConfigManager();
 
-	private async Execute(options: PushOptions): Promise<void> {
+	private async Execute(options: PushOptions, command: Command): Promise<void> {
 		const loaded = resolveApiCredentials({
 			token: options.token,
 			workspace: this.workspace,
 		});
 		if (!loaded.success) {
-			this.logger.Error(loaded.error);
-			return;
+			throw new CliError(loaded.error);
 		}
 		const { config } = loaded;
 		if (options.installationId !== undefined && options.themeId === undefined) {
@@ -113,9 +112,6 @@ export class ThemeApiPushCommand {
 			options.header,
 			this.logger,
 		);
-		if (extraHeaders === null) {
-			return;
-		}
 		const client = new ThemeApiClient({
 			apiBaseUrl: baseUrl,
 			publicApiToken: config.publicApiToken,
@@ -124,32 +120,20 @@ export class ThemeApiPushCommand {
 			extraHeaders,
 		});
 
-		const themeId = await resolveThemeIdWithProductive({
-			options: {
-				themeId: options.themeId ?? options.installationId,
-				published: options.published,
-			},
+		const themeId = await resolveThemeIdOrFail({
+			cmd: command,
+			options,
 			config,
 			getClient: () => client,
-			logger: this.logger,
 		});
-		if (!themeId) {
-			if (!options.published) {
-				const cli = getCliExecutableName();
-				this.logger.Error(
-					`No theme id: pass --theme-id, use --published, or run ${cli} theme pull --theme-id <id> (saves to .nuvem).`,
-				);
-			}
-			return;
-		}
 
-		if (!options.y) {
-			const confirm = await this.interaction.Confirm(
-				"Files on the theme will be overwritten, and files that no longer exist locally will be deleted. Do you want to continue?",
-			);
-			if (!confirm) {
-				return;
-			}
+		const confirmed = await confirmOrAbort(
+			command,
+			this.interaction,
+			"Files on the theme will be overwritten, and files that no longer exist locally will be deleted. Do you want to continue?",
+		);
+		if (!confirmed) {
+			return;
 		}
 
 		this.logger.Log(
@@ -176,8 +160,7 @@ export class ThemeApiPushCommand {
 			]);
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);
-			this.logger.Error(`Failed to fetch remote data: ${msg}`);
-			return;
+			throw new CliError(`Failed to fetch remote data: ${msg}`);
 		}
 
 		const forked = isInstallationForked(installationMeta);
@@ -279,12 +262,11 @@ export class ThemeApiPushCommand {
 			if (readFailCount > 0)
 				reasons.push(`${readFailCount} file(s) could not be read`);
 			if (uploadError !== null) reasons.push("upload error");
-			this.logger.Error(
+			throw new CliError(
 				`Sync finished with errors in ${elapsedMs}ms (${reasons.join(", ")}) — ${stats}`,
 			);
-		} else {
-			this.logger.Log(`Sync completed in ${elapsedMs}ms — ${stats}`);
 		}
+		this.logger.Log(`Sync completed in ${elapsedMs}ms — ${stats}`);
 	}
 
 	Bind(command: Command): void {
@@ -308,11 +290,12 @@ export class ThemeApiPushCommand {
 		addHiddenThemeApiUrlOption(pushCmd);
 		addHiddenThemeApiHeaderOption(pushCmd);
 		pushCmd
-			.option("-y", "Skip confirmation prompt", false)
 			.option("-v", "Enable verbose logging", false)
 			.option("--force", "Skip remote comparison and upload all files", false)
-			.action(async (opts: PushOptions) => {
-				await this.Execute(opts);
-			});
+			.action(
+				runAction((opts: PushOptions, command: Command) =>
+					this.Execute(opts, command),
+				),
+			);
 	}
 }

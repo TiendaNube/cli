@@ -31,7 +31,7 @@ export function ensureStorefrontProtocol(url: string): string {
 	return trimmed;
 }
 
-function isHttpOrHttpsUrl(url: string): boolean {
+export function isHttpOrHttpsUrl(url: string): boolean {
 	try {
 		const parsed = new URL(url);
 		return parsed.protocol === "http:" || parsed.protocol === "https:";

@@ -1,6 +1,7 @@
 import type { Command } from "commander";
+import { CliError, runAction } from "../../../../cli-action";
 import { getCliExecutableName } from "../../../../cli-executable-name";
-import { NubeCliLogger } from "../../../../nube-cli-logger";
+import { CliLogger } from "../../../../cli-logger";
 import { ThemeWorkspaceConfigManager } from "../../theme-workspace-config-manager";
 import { addThemeApiTokenOption } from "../theme-api-cli-options";
 import { resolveApiCredentials } from "../theme-api-credentials";
@@ -10,7 +11,7 @@ type CurrentOptions = {
 };
 
 export class ThemeApiInstallationCurrentCommand {
-	private logger = new NubeCliLogger();
+	private logger = new CliLogger();
 	private workspace = new ThemeWorkspaceConfigManager();
 
 	private async Execute(options: CurrentOptions): Promise<void> {
@@ -19,19 +20,17 @@ export class ThemeApiInstallationCurrentCommand {
 			workspace: this.workspace,
 		});
 		if (!loaded.success) {
-			this.logger.Error(loaded.error);
-			return;
+			throw new CliError(loaded.error);
 		}
 		const { config } = loaded;
 		const themeId = config.themeId;
 
 		if (!themeId) {
-			this.logger.Error(
+			throw new CliError(
 				`No theme id saved for the current folder. Run ${getCliExecutableName()} theme pull --theme-id <id>`,
 			);
-		} else {
-			this.logger.Log(`Current theme id is ${themeId}.`);
 		}
+		this.logger.Log(`Current theme id is ${themeId}.`);
 	}
 
 	Bind(command: Command): void {
@@ -39,8 +38,8 @@ export class ThemeApiInstallationCurrentCommand {
 			.command("current")
 			.description("Show the theme linked to the current folder");
 		addThemeApiTokenOption(currentCommand);
-		currentCommand.action(async (opts: CurrentOptions) => {
-			await this.Execute(opts);
-		});
+		currentCommand.action(
+			runAction((opts: CurrentOptions) => this.Execute(opts)),
+		);
 	}
 }

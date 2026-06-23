@@ -204,9 +204,51 @@ describe("formatInstallationsAsTextTable", () => {
 		// The base_theme cell shows the catalog name, not the numeric ID
 		expect(text).toContain("ipanema");
 		expect(text).not.toContain(" 44 ");
+		// No variant on this item → shows N/A
+		expect(text).toContain("N/A");
 		// Old column names are gone
 		expect(text).not.toMatch(/(^|\s)theme_id(\s|$)/);
 		expect(text).not.toMatch(/(^|\s)theme_type(\s|$)/);
 		expect(text).toMatch(/Total: 1/);
+	});
+
+	it("shows the variant column and reads version from the `version` field", () => {
+		const text = formatInstallationsAsTextTable([
+			{
+				id: 12_240_598,
+				store_id: 7_494_913,
+				title: "multiple1",
+				theme_id: 42,
+				theme_name: "ipanema",
+				theme_variant: "Clothing",
+				theme_type: "sectionable",
+				version: "forked",
+				is_productive: false,
+				forked: true,
+			},
+		]);
+		expect(text).toContain("base_theme_variant");
+		expect(text).toContain("Clothing");
+		expect(text).toContain("forked");
+		expect(text).toContain("12240598");
+		expect(text).toContain("ipanema");
+		// base theme id (42) is not shown as the row id
+		expect(text).not.toMatch(/(^|\s)42(\s|$)/);
+	});
+
+	it("shows N/A for a blank version and variant", () => {
+		const text = formatInstallationsAsTextTable([
+			{
+				id: 6_020_304,
+				store_id: 5_012_345,
+				title: "Installation 1",
+				theme_name: "ipanema",
+				theme_type: "sectionable",
+				is_productive: false,
+				forked: false,
+			},
+		]);
+		// Both the version and variant cells fall back to N/A
+		expect(text.match(/N\/A/g)?.length).toBe(2);
 	});
 });
