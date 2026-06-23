@@ -41,7 +41,7 @@ describe("ThemeApiInstallationCreateCommand", () => {
 		expect(themeApiCmdMocks.error).toHaveBeenCalledWith("no config");
 	});
 
-	it("errors on empty base-theme or title after trim", async () => {
+	it("errors on empty base-theme passed via flag (validation layer)", async () => {
 		themeApiCmdMocks.tryLoadResult = {
 			success: true,
 			config: { publicApiToken: "t", storeId: "1" },
@@ -49,17 +49,40 @@ describe("ThemeApiInstallationCreateCommand", () => {
 		const program = programWithThemeCommand((c) => {
 			new ThemeApiInstallationCreateCommand().Bind(c);
 		});
-		await parseWithTail(program, [
-			"theme",
-			"create",
-			"--base-theme",
-			"   ",
-			"--title",
-			"   ",
-		]);
-		expect(themeApiCmdMocks.error).toHaveBeenCalledWith(
-			"--base-theme and --title must be non-empty.",
+		await expect(
+			parseWithTail(program, [
+				"theme",
+				"create",
+				"--base-theme",
+				"   ",
+				"--title",
+				"   ",
+			]),
+		).rejects.toThrow("This value is required.");
+		expect(themeApiCmdMocks.createInstallation).not.toHaveBeenCalled();
+	});
+
+	it("errors on a malformed base-theme code passed via flag", async () => {
+		themeApiCmdMocks.tryLoadResult = {
+			success: true,
+			config: { publicApiToken: "t", storeId: "1" },
+		};
+		const program = programWithThemeCommand((c) => {
+			new ThemeApiInstallationCreateCommand().Bind(c);
+		});
+		await expect(
+			parseWithTail(program, [
+				"theme",
+				"create",
+				"--base-theme",
+				"Ipanema",
+				"--title",
+				"My theme",
+			]),
+		).rejects.toThrow(
+			"Base theme code must be lowercase letters, digits, hyphens or underscores (e.g. ipanema).",
 		);
+		expect(themeApiCmdMocks.createInstallation).not.toHaveBeenCalled();
 	});
 
 	it("logs success when API creates theme with --base-theme", async () => {
@@ -87,6 +110,80 @@ describe("ThemeApiInstallationCreateCommand", () => {
 			"Theme new created successfully.",
 		);
 		expect(stderrSpy).not.toHaveBeenCalled();
+	});
+
+	it("passes theme_variant when --base-theme-variant is valid", async () => {
+		themeApiCmdMocks.tryLoadResult = {
+			success: true,
+			config: { publicApiToken: "t", storeId: "1" },
+		};
+		themeApiCmdMocks.createInstallation.mockResolvedValue({ id: "new" });
+		const program = programWithThemeCommand((c) => {
+			new ThemeApiInstallationCreateCommand().Bind(c);
+		});
+		await parseWithTail(program, [
+			"theme",
+			"create",
+			"--base-theme",
+			"ipanema",
+			"--title",
+			"My theme",
+			"--base-theme-variant",
+			"Clothing",
+		]);
+		expect(themeApiCmdMocks.createInstallation).toHaveBeenCalledWith({
+			theme_code: "ipanema",
+			title: "My theme",
+			theme_variant: "Clothing",
+		});
+	});
+
+	it("errors on a lowercase --base-theme-variant", async () => {
+		themeApiCmdMocks.tryLoadResult = {
+			success: true,
+			config: { publicApiToken: "t", storeId: "1" },
+		};
+		const program = programWithThemeCommand((c) => {
+			new ThemeApiInstallationCreateCommand().Bind(c);
+		});
+		await parseWithTail(program, [
+			"theme",
+			"create",
+			"--base-theme",
+			"ipanema",
+			"--title",
+			"My theme",
+			"--base-theme-variant",
+			"clothing",
+		]);
+		expect(themeApiCmdMocks.error).toHaveBeenCalledWith(
+			"Base theme variant must contain only letters and start with an uppercase letter (e.g. Clothing).",
+		);
+		expect(themeApiCmdMocks.createInstallation).not.toHaveBeenCalled();
+	});
+
+	it("errors on a --base-theme-variant containing non-letters", async () => {
+		themeApiCmdMocks.tryLoadResult = {
+			success: true,
+			config: { publicApiToken: "t", storeId: "1" },
+		};
+		const program = programWithThemeCommand((c) => {
+			new ThemeApiInstallationCreateCommand().Bind(c);
+		});
+		await parseWithTail(program, [
+			"theme",
+			"create",
+			"--base-theme",
+			"ipanema",
+			"--title",
+			"My theme",
+			"--base-theme-variant",
+			"Clothing-store",
+		]);
+		expect(themeApiCmdMocks.error).toHaveBeenCalledWith(
+			"Base theme variant must contain only letters and start with an uppercase letter (e.g. Clothing).",
+		);
+		expect(themeApiCmdMocks.createInstallation).not.toHaveBeenCalled();
 	});
 
 	it("accepts deprecated --theme-code and warns on stderr", async () => {

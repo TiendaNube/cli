@@ -1,8 +1,10 @@
 import type { Command } from "commander";
 import puppeteer, { type Browser } from "puppeteer";
+import { CliError, runAction } from "../../../../cli-action";
 import { getCliExecutableName } from "../../../../cli-executable-name";
-import { NubeCliInteraction } from "../../../../nube-cli-interaction";
-import { NubeCliLogger } from "../../../../nube-cli-logger";
+import { CliInteraction } from "../../../../cli-interaction";
+import { CliLogger } from "../../../../cli-logger";
+import { yesFlagSet } from "../../../../interactivity";
 import { openSystemBrowser } from "../open-system-browser";
 import {
 	type CliAuthTokenPayload,
@@ -26,7 +28,6 @@ type AuthorizeOptions = {
 	apiUrl?: string;
 	header?: string[];
 	token?: string;
-	y?: boolean;
 	v?: boolean;
 };
 
@@ -57,8 +58,8 @@ function authorizeUrlWithCliRegion(absoluteUrl: string): string {
 }
 
 export class ThemeApiAuthorizeCommand {
-	private logger = new NubeCliLogger();
-	private interaction = new NubeCliInteraction();
+	private logger = new CliLogger();
+	private interaction = new CliInteraction();
 
 	private async RunAuthorizeBrowserSetup(url: string): Promise<Browser | null> {
 		let browser: Browser | undefined;
@@ -92,6 +93,7 @@ export class ThemeApiAuthorizeCommand {
 	private async runSetupFromDecodedPayload(
 		payload: CliAuthTokenPayload,
 		options: AuthorizeOptions,
+		command: Command,
 	): Promise<void> {
 		const { storeId, accessToken } = payload;
 		const apiBaseUrl = resolveThemeApiBaseUrl({ cliUrl: options.apiUrl });
@@ -100,9 +102,6 @@ export class ThemeApiAuthorizeCommand {
 			options.header,
 			this.logger,
 		);
-		if (extraHeaders === null) {
-			return;
-		}
 
 		this.logger.Log("Fetching store URL from Public API…");
 		const storeResult = await fetchStorefrontUrlFromPublicApi({
@@ -112,8 +111,7 @@ export class ThemeApiAuthorizeCommand {
 			extraHeaders,
 		});
 		if (!storeResult.ok) {
-			this.logger.Error(storeResult.message);
-			return;
+			throw new CliError(storeResult.message);
 		}
 
 		await executeThemeApiSetup({
@@ -122,28 +120,29 @@ export class ThemeApiAuthorizeCommand {
 			storeUrl: storeResult.storeUrl,
 			apiUrl: options.apiUrl,
 			extraHeaders,
-			skipConfirm: options.y ?? false,
+			skipConfirm: yesFlagSet(command),
 			verbose: options.v ?? false,
 		});
 	}
 
-	private async Execute(options: AuthorizeOptions): Promise<void> {
+	private async Execute(
+		options: AuthorizeOptions,
+		command: Command,
+	): Promise<void> {
 		const tokenFromFlag = options.token?.trim();
 		if (tokenFromFlag) {
 			const decoded = decodeCliThemeAuthToken(tokenFromFlag);
 			if (!decoded.ok) {
-				this.logger.Error(decoded.message);
-				return;
+				throw new CliError(decoded.message);
 			}
-			await this.runSetupFromDecodedPayload(decoded.value, options);
+			await this.runSetupFromDecodedPayload(decoded.value, options, command);
 			return;
 		}
 
 		const resolved = resolveAuthorizeUrl(options.authorizeUrl);
 		const validationError = validateBrowserUrl(resolved);
 		if (validationError) {
-			this.logger.Error(validationError);
-			return;
+			throw new CliError(validationError);
 		}
 
 		const url = authorizeUrlWithCliRegion(resolved);
@@ -159,11 +158,10 @@ export class ThemeApiAuthorizeCommand {
 			const pasted = await this.interaction.Input("Paste your token:");
 			const decoded = decodeCliThemeAuthToken(pasted ?? "");
 			if (!decoded.ok) {
-				this.logger.Error(decoded.message);
-				return;
+				throw new CliError(decoded.message);
 			}
 
-			await this.runSetupFromDecodedPayload(decoded.value, options);
+			await this.runSetupFromDecodedPayload(decoded.value, options, command);
 		} finally {
 			if (puppeteerBrowser) {
 				try {
@@ -182,19 +180,16 @@ export class ThemeApiAuthorizeCommand {
 				"Sign in via browser to connect your store and enable theme operations",
 			)
 			.option("--token <token>", "Token obtained from the authorize page")
-			.option(
-				"-y",
-				"Skips confirmation prompt when the current directory is not empty",
-				false,
-			)
 			.option("-v", "Verbose HTTP logging", false);
 		addHiddenThemeAuthorizeUrlOption(authorizeCmd);
 		addHiddenThemeApiUrlOption(authorizeCmd);
 		addHiddenThemeApiHeaderOption(authorizeCmd);
 		authorizeCmd
 			.allowExcessArguments(true)
-			.action(async (opts: AuthorizeOptions) => {
-				await this.Execute(opts);
-			});
+			.action(
+				runAction((opts: AuthorizeOptions, command: Command) =>
+					this.Execute(opts, command),
+				),
+			);
 	}
 }

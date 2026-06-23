@@ -153,6 +153,7 @@ export type InstallationTableFields = {
 	store_id: string;
 	title: string;
 	base_theme: string;
+	base_theme_variant: string;
 	theme_version: string;
 	base_theme_type: string;
 	is_productive: string;
@@ -168,7 +169,8 @@ export function mapInstallationToTableFields(
 			store_id: "",
 			title: "",
 			base_theme: "",
-			theme_version: "",
+			base_theme_variant: "N/A",
+			theme_version: "N/A",
 			base_theme_type: "",
 			is_productive: "",
 			forked: "",
@@ -179,6 +181,21 @@ export function mapInstallationToTableFields(
 		if (v === false) return "no";
 		return "";
 	};
+	// Read the new API vocabulary first, falling back to the legacy field name
+	// so the table keeps working whichever shape the Public API returns.
+	const str = (...candidates: unknown[]): string => {
+		for (const c of candidates) {
+			if (typeof c === "string") return c;
+		}
+		return "";
+	};
+	// First non-blank value, coerced to string; `N/A` when none is present.
+	const valueOrNA = (...candidates: unknown[]): string => {
+		for (const c of candidates) {
+			if (c != null && String(c).trim() !== "") return String(c);
+		}
+		return "N/A";
+	};
 	return {
 		id:
 			item.id !== undefined
@@ -188,10 +205,10 @@ export function mapInstallationToTableFields(
 					: "?",
 		store_id: item.store_id !== undefined ? String(item.store_id) : "",
 		title: typeof item.title === "string" ? item.title : "",
-		base_theme: typeof item.theme_name === "string" ? item.theme_name : "",
-		theme_version:
-			item.theme_version !== undefined ? String(item.theme_version) : "",
-		base_theme_type: typeof item.theme_type === "string" ? item.theme_type : "",
+		base_theme: str(item.base_theme, item.theme_name),
+		base_theme_variant: valueOrNA(item.base_theme_variant, item.theme_variant),
+		theme_version: valueOrNA(item.version, item.theme_version),
+		base_theme_type: str(item.base_theme_type, item.theme_type),
 		is_productive: boolStr(item.is_productive),
 		forked: boolStr(item.forked),
 	};
@@ -229,10 +246,15 @@ export function formatInstallationsAsTextTable(
 			...rows.map((r) => r.base_theme.length),
 			"base_theme".length,
 		),
+		base_theme_variant: Math.max(
+			7,
+			...rows.map((r) => r.base_theme_variant.length),
+			"base_theme_variant".length,
+		),
 		theme_version: Math.max(
 			7,
 			...rows.map((r) => r.theme_version.length),
-			"version".length,
+			"base_theme_version".length,
 		),
 		base_theme_type: Math.max(
 			15,
@@ -253,6 +275,7 @@ export function formatInstallationsAsTextTable(
 			char.repeat(cols.store_id),
 			char.repeat(cols.title),
 			char.repeat(cols.base_theme),
+			char.repeat(cols.base_theme_variant),
 			char.repeat(cols.theme_version),
 			char.repeat(cols.base_theme_type),
 			char.repeat(cols.prod),
@@ -265,6 +288,7 @@ export function formatInstallationsAsTextTable(
 			padCell(r.store_id, cols.store_id),
 			padCell(r.title, cols.title),
 			padCell(r.base_theme, cols.base_theme),
+			padCell(r.base_theme_variant, cols.base_theme_variant),
 			padCell(r.theme_version, cols.theme_version),
 			padCell(r.base_theme_type, cols.base_theme_type),
 			padCell(r.is_productive, cols.prod),
@@ -276,7 +300,8 @@ export function formatInstallationsAsTextTable(
 		padCell("store_id", cols.store_id),
 		padCell("title", cols.title),
 		padCell("base_theme", cols.base_theme),
-		padCell("version", cols.theme_version),
+		padCell("base_theme_variant", cols.base_theme_variant),
+		padCell("base_theme_version", cols.theme_version),
 		padCell("base_theme_type", cols.base_theme_type),
 		padCell("prod", cols.prod),
 		padCell("fork", cols.fork),

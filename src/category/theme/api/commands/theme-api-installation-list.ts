@@ -1,5 +1,6 @@
 import type { Command } from "commander";
-import { NubeCliLogger } from "../../../../nube-cli-logger";
+import { CliError, runAction } from "../../../../cli-action";
+import { CliLogger } from "../../../../cli-logger";
 import { ThemeWorkspaceConfigManager } from "../../theme-workspace-config-manager";
 import {
 	addHiddenThemeApiHeaderOption,
@@ -25,7 +26,7 @@ type ListOptions = {
 };
 
 export class ThemeApiInstallationListCommand {
-	private logger = new NubeCliLogger();
+	private logger = new CliLogger();
 	private workspace = new ThemeWorkspaceConfigManager();
 
 	private async Execute(options: ListOptions): Promise<void> {
@@ -34,8 +35,7 @@ export class ThemeApiInstallationListCommand {
 			workspace: this.workspace,
 		});
 		if (!loaded.success) {
-			this.logger.Error(loaded.error);
-			return;
+			throw new CliError(loaded.error);
 		}
 		const { config } = loaded;
 		const baseUrl = resolveThemeApiBaseUrl({
@@ -46,9 +46,6 @@ export class ThemeApiInstallationListCommand {
 			options.header,
 			this.logger,
 		);
-		if (extraHeaders === null) {
-			return;
-		}
 		const client = new ThemeApiClient({
 			apiBaseUrl: baseUrl,
 			publicApiToken: config.publicApiToken,
@@ -57,14 +54,7 @@ export class ThemeApiInstallationListCommand {
 			extraHeaders,
 		});
 
-		let body: unknown;
-		try {
-			body = await client.listInstallations();
-		} catch (err) {
-			const msg = err instanceof Error ? err.message : String(err);
-			this.logger.Error(msg);
-			return;
-		}
+		const body: unknown = await client.listInstallations();
 
 		if (options.json) {
 			process.stdout.write(stringifyListInstallationsResponse(body));
@@ -90,8 +80,6 @@ export class ThemeApiInstallationListCommand {
 		listCmd
 			.option("--json", "Use machine-readable JSON output", false)
 			.option("-v", "Enable verbose logging", false)
-			.action(async (opts: ListOptions) => {
-				await this.Execute(opts);
-			});
+			.action(runAction((opts: ListOptions) => this.Execute(opts)));
 	}
 }

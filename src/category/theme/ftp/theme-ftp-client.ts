@@ -2,14 +2,14 @@ import fs from "node:fs";
 import path from "node:path";
 import { Client, FileType } from "basic-ftp";
 import { readdirpPromise } from "readdirp";
-import { NubeCliLogger } from "../../../nube-cli-logger";
+import { CliLogger } from "../../../cli-logger";
 import type { ThemeFtpClientConfig } from "./theme-ftp-client-config";
 import type { ThemeFtpClientResult } from "./theme-ftp-client-result";
 import type { ThemeFtpDiffResult } from "./theme-ftp-diff-result";
 import { ThemeFtpTools } from "./theme-ftp-tools";
 
 export class ThemeFtpClient {
-	private logger = new NubeCliLogger();
+	private logger = new CliLogger();
 	private tools = new ThemeFtpTools();
 
 	private config: ThemeFtpClientConfig;
@@ -17,6 +17,8 @@ export class ThemeFtpClient {
 	private FTP_TIMEOUT = 30000; // Default from basic-ftp
 	private FTP_TEST_TIMEOUT = 5000;
 	private MAX_PARALLEL_CONNECTIONS = 5;
+	private FTP_MAX_RETRIES = 3;
+	private FTP_RETRY_BASE_DELAY = 500; // ms; exponential backoff base for transient FTP errors
 
 	public constructor(config: ThemeFtpClientConfig) {
 		this.config = config;
@@ -65,7 +67,7 @@ export class ThemeFtpClient {
 		}
 		const remoteRelative = this.toFtpRelativePath(relativePath);
 		const remotePath = `/${remoteRelative}`;
-		return await this.RunFtpCommand(async (client: Client) => {
+		return await this.RunFtpCommandWithRetries(async (client: Client) => {
 			await client.uploadFrom(filePath, remotePath);
 			await this.pullRemoteMtimeToLocal(client, remotePath, filePath);
 		}, this.FTP_TIMEOUT);
@@ -78,7 +80,7 @@ export class ThemeFtpClient {
 			return { success: true, errorMessage: "" };
 		}
 		const remoteRelative = this.toFtpRelativePath(relativePath);
-		return await this.RunFtpCommand(async (client: Client) => {
+		return await this.RunFtpCommandWithRetries(async (client: Client) => {
 			await client.remove(`/${remoteRelative}`);
 		}, this.FTP_TIMEOUT);
 	}
@@ -113,12 +115,15 @@ export class ThemeFtpClient {
 	async DownloadAll(): Promise<ThemeFtpClientResult> {
 		let files: Array<{ path: string; modifiedAt: Date | undefined }> = [];
 
-		const listResult = await this.RunFtpCommand(async (client: Client) => {
-			files = (await this.ListRecursively(client, "/")).map((f) => ({
-				path: f.path,
-				modifiedAt: f.modifiedAt,
-			}));
-		}, this.FTP_TIMEOUT);
+		const listResult = await this.RunFtpCommandWithRetries(
+			async (client: Client) => {
+				files = (await this.ListRecursively(client, "/")).map((f) => ({
+					path: f.path,
+					modifiedAt: f.modifiedAt,
+				}));
+			},
+			this.FTP_TIMEOUT,
+		);
 
 		if (!listResult.success) {
 			return listResult;
@@ -143,7 +148,7 @@ export class ThemeFtpClient {
 	private async DownloadParallel(
 		files: Array<{ path: string; modifiedAt: Date | undefined }>,
 	): Promise<ThemeFtpClientResult> {
-		return await this.RunFtpCommand(async (client: Client) => {
+		return await this.RunFtpCommandWithRetries(async (client: Client) => {
 			for (const file of files) {
 				const localPath = `${path.resolve("./")}/${file.path.replace(/^\//, "")}`;
 				const localFolder = path.dirname(localPath);
@@ -205,7 +210,7 @@ export class ThemeFtpClient {
 					fileFilter: (entry) =>
 						!ThemeFtpTools.isExcludedFromThemeUpload(entry.path),
 				}).then((entries) => entries.map((e) => e.fullPath)),
-				this.RunFtpCommand(async (client: Client) => {
+				this.RunFtpCommandWithRetries(async (client: Client) => {
 					this.logger.Log("Fetching remote files...");
 					remoteFiles = await this.ListRecursively(client, "/");
 				}, this.FTP_TIMEOUT),
@@ -295,7 +300,7 @@ export class ThemeFtpClient {
 
 	private async UploadParallel(files: string[]): Promise<ThemeFtpClientResult> {
 		const cwd = path.resolve("./");
-		return await this.RunFtpCommand(async (client: Client) => {
+		return await this.RunFtpCommandWithRetries(async (client: Client) => {
 			for (const file of files) {
 				const rel = ThemeFtpTools.themeUploadRelativePath(cwd, file);
 				if (rel === null) continue;
@@ -316,45 +321,71 @@ export class ThemeFtpClient {
 	private async DeleteParallel(
 		ftpPaths: string[],
 	): Promise<ThemeFtpClientResult> {
-		return await this.RunFtpCommand(async (client: Client) => {
+		return await this.RunFtpCommandWithRetries(async (client: Client) => {
 			for (const ftpPath of ftpPaths) {
 				this.logger.Log(`Deleting file ${ftpPath}`);
-				await client.remove(ftpPath);
+				try {
+					await client.remove(ftpPath);
+				} catch (err) {
+					// A retried delete chunk can re-target a file removed on a prior attempt.
+					// Servers report "already gone" inconsistently (450/550, misleading text),
+					// so key off the FTP reply code and treat it as success.
+					const code = (err as { code?: number }).code;
+					if (code !== 450 && code !== 550) {
+						throw err;
+					}
+				}
 			}
 		}, this.FTP_TIMEOUT);
 	}
 
 	async Test(): Promise<ThemeFtpClientResult> {
-		let success = false;
-		let errorMessage = "";
-		const client = new Client(this.FTP_TEST_TIMEOUT);
-		try {
-			client.ftp.verbose = this.config.verbose;
-			await client.access({
-				host: this.config.ftpServer,
-				port: this.FTP_PORT,
-				user: this.config.ftpUsername,
-				password: this.config.ftpPassword,
-				secure: true,
-			});
-			success = true;
-		} catch (err) {
-			errorMessage = err instanceof Error ? err.message : String(err);
-		} finally {
-			client.close();
-		}
-		return {
-			success: success,
-			errorMessage: errorMessage,
-		} as ThemeFtpClientResult;
+		// access() alone validates connectivity + credentials; no action needed.
+		// Reuses RunFtpCommand so it inherits retry on transient transport errors,
+		// while bad credentials (FTP 530) still fail fast as a non-retryable error.
+		return await this.RunFtpCommandWithRetries(async () => {
+			// connection established by access(); nothing else to do
+		}, this.FTP_TEST_TIMEOUT);
 	}
 
+	/**
+	 * Only transport/connection failures are retried — the kind a fresh connection
+	 * can recover from (timeouts, sockets dropped mid-operation, TLS handshakes the
+	 * server cut on the data channel). FTP reply codes (4xx/5xx) are deliberately NOT
+	 * retryable: e.g. a 450/550 on an already-removed file would retry forever. Those
+	 * are handled at the call site (see DeleteParallel).
+	 */
+	private isRetryableError(err: unknown): boolean {
+		const message = err instanceof Error ? err.message : String(err);
+		const code = (err as { code?: string | number }).code;
+		if (
+			code === "ECONNRESET" ||
+			code === "ETIMEDOUT" ||
+			code === "EPIPE" ||
+			code === "ECONNABORTED" ||
+			code === "ERR_STREAM_PREMATURE_CLOSE"
+		) {
+			return true;
+		}
+		// basic-ftp surfaces these with varied messages and no clean code.
+		return /timed?\s?out|timeout|premature close|socket disconnected|socket hang up|ECONNRESET|ETIMEDOUT|EPIPE/i.test(
+			message,
+		);
+	}
+
+	private async delay(ms: number): Promise<void> {
+		await new Promise((resolve) => setTimeout(resolve, ms));
+	}
+
+	/**
+	 * Single attempt: open a fresh connection, run the action, always close the client.
+	 * Errors propagate to the caller — the retry/result conversion lives in
+	 * RunFtpCommandWithRetries, so this stays a pure atomic operation.
+	 */
 	private async RunFtpCommand(
 		action: (client: Client) => Promise<void>,
 		timeout: number,
-	): Promise<ThemeFtpClientResult> {
-		let success = false;
-		let errorMessage = "";
+	): Promise<void> {
 		const client = new Client(timeout);
 		try {
 			client.ftp.verbose = this.config.verbose;
@@ -366,14 +397,46 @@ export class ThemeFtpClient {
 				secure: true,
 			});
 			await action(client);
-			success = true;
-		} catch (err) {
-			errorMessage = err instanceof Error ? err.message : String(err);
 		} finally {
 			client.close();
 		}
+	}
+
+	/**
+	 * Runs RunFtpCommand with retry on transient transport errors. Each attempt gets a
+	 * fresh connection (RunFtpCommand builds a new Client), which is exactly what a
+	 * dropped socket needs. Owns the single error → ThemeFtpClientResult conversion.
+	 */
+	private async RunFtpCommandWithRetries(
+		action: (client: Client) => Promise<void>,
+		timeout: number,
+	): Promise<ThemeFtpClientResult> {
+		let errorMessage = "";
+
+		for (let attempt = 1; attempt <= this.FTP_MAX_RETRIES; attempt++) {
+			try {
+				await this.RunFtpCommand(action, timeout);
+				return { success: true, errorMessage: "" } as ThemeFtpClientResult;
+			} catch (err) {
+				errorMessage = err instanceof Error ? err.message : String(err);
+				if (attempt >= this.FTP_MAX_RETRIES || !this.isRetryableError(err)) {
+					return {
+						success: false,
+						errorMessage: errorMessage,
+					} as ThemeFtpClientResult;
+				}
+				const backoff =
+					this.FTP_RETRY_BASE_DELAY * 2 ** (attempt - 1) +
+					Math.floor(Math.random() * 250); // jitter to avoid thundering herd
+				this.logger.Log(
+					`FTP operation failed (attempt ${attempt}/${this.FTP_MAX_RETRIES}): ${errorMessage}. Retrying in ${backoff}ms...`,
+				);
+				await this.delay(backoff);
+			}
+		}
+
 		return {
-			success: success,
+			success: false,
 			errorMessage: errorMessage,
 		} as ThemeFtpClientResult;
 	}

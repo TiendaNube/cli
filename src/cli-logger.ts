@@ -1,6 +1,6 @@
 import { Chalk } from "chalk";
 
-export class NubeCliLogger {
+export class CliLogger {
 	private chalk = new Chalk();
 
 	Log(message: string) {

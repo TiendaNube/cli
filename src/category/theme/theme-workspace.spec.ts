@@ -86,13 +86,11 @@ describe("findProductiveThemeId", () => {
 });
 
 describe("resolveThemeIdWithProductive", () => {
-	const makeLogger = () => ({ Error: vi.fn() });
 	const makeClient = (installations: unknown[]) => ({
 		listInstallations: async () => ({ installations }),
 	});
 
 	it("returns productive id when --published is set", async () => {
-		const logger = makeLogger();
 		const id = await resolveThemeIdWithProductive({
 			options: { published: true },
 			config: { publicApiToken: "t", storeId: "1" },
@@ -101,53 +99,43 @@ describe("resolveThemeIdWithProductive", () => {
 					{ id: 10, is_productive: false },
 					{ id: 22, is_productive: true },
 				]),
-			logger,
 		});
 		expect(id).toBe("22");
-		expect(logger.Error).not.toHaveBeenCalled();
 	});
 
-	it("errors and returns null when both flags are set", async () => {
-		const logger = makeLogger();
-		const id = await resolveThemeIdWithProductive({
-			options: { published: true, themeId: "5" },
-			config: { publicApiToken: "t", storeId: "1" },
-			getClient: () => makeClient([]),
-			logger,
-		});
-		expect(id).toBeNull();
-		expect(logger.Error).toHaveBeenCalledWith(
-			"--published cannot be combined with --theme-id",
-		);
+	it("throws CliError when both flags are set", async () => {
+		await expect(
+			resolveThemeIdWithProductive({
+				options: { published: true, themeId: "5" },
+				config: { publicApiToken: "t", storeId: "1" },
+				getClient: () => makeClient([]),
+			}),
+		).rejects.toThrow("--published cannot be combined with --theme-id");
 	});
 
 	it("falls back to resolveThemeId when productive flag is off", async () => {
-		const logger = makeLogger();
 		const id = await resolveThemeIdWithProductive({
 			options: { themeId: "7" },
 			config: { publicApiToken: "t", storeId: "1", themeId: "9" },
 			getClient: () => {
 				throw new Error("must not be called");
 			},
-			logger,
 		});
 		expect(id).toBe("7");
 	});
 
-	it("logs and returns null when listInstallations throws", async () => {
-		const logger = makeLogger();
-		const id = await resolveThemeIdWithProductive({
-			options: { published: true },
-			config: { publicApiToken: "t", storeId: "1" },
-			getClient: () => ({
-				listInstallations: async () => {
-					throw new Error("boom");
-				},
+	it("throws CliError when listInstallations throws", async () => {
+		await expect(
+			resolveThemeIdWithProductive({
+				options: { published: true },
+				config: { publicApiToken: "t", storeId: "1" },
+				getClient: () => ({
+					listInstallations: async () => {
+						throw new Error("boom");
+					},
+				}),
 			}),
-			logger,
-		});
-		expect(id).toBeNull();
-		expect(logger.Error).toHaveBeenCalledWith("Failed to list themes: boom");
+		).rejects.toThrow("Failed to list themes: boom");
 	});
 });
 

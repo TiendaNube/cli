@@ -217,10 +217,10 @@ Create a new theme. Prints the new theme id on success.
 > Currently only `ipanema` is accepted as `--base-theme`. Support for additional base themes is planned.
 
 **Required:** `--base-theme`, `--title`  
-**Optional:** **`--json`** (machine-readable JSON output), **`-v`** (verbose HTTP).  
+**Optional:** **`--base-theme-variant`** (letters only, first letter uppercase, e.g. `Clothing`; when omitted, the API defaults to `Clothing`), **`--json`** (machine-readable JSON output), **`-v`** (verbose HTTP).  
 
 ```bash
-nuvemshop theme create --base-theme "ipanema" --title "My New Theme"
+nuvemshop theme create --base-theme "ipanema" --title "My New Theme" --base-theme-variant "Clothing"
 ```
 
 #### `theme clone`

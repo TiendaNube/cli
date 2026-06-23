@@ -44,7 +44,7 @@ describe("ThemeApiInstallationDeleteCommand", () => {
 		});
 		await parseWithTail(program, ["theme", "delete", "-y"]);
 		expect(themeApiCmdMocks.error).toHaveBeenCalledWith(
-			"No theme id: pass --theme-id or run tiendanube theme pull --theme-id <id> (saves to .nuvem).",
+			"No theme id: pass --theme-id, or run tiendanube theme pull --theme-id <id> (saves to .nuvem).",
 		);
 	});
 

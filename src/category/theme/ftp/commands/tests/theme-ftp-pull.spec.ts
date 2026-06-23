@@ -8,7 +8,11 @@ import {
 } from "../../../api/commands/tests/fs-readdir-sync-spy";
 import { ThemeFtpPullCommand } from "../theme-ftp-pull";
 import { parseWithTail, programWithFtpSubcommand } from "./helpers";
-import { ftpCmdMocks, resetFtpCmdMocks } from "./theme-ftp-command-test-mocks";
+import {
+	forceInteractiveTestEnv,
+	ftpCmdMocks,
+	resetFtpCmdMocks,
+} from "./theme-ftp-command-test-mocks";
 
 const validFtpConfig = {
 	ftp: {
@@ -101,6 +105,7 @@ describe("ThemeFtpPullCommand", () => {
 		ftpCmdMocks.isSet = true;
 		ftpCmdMocks.tryLoadResult = { success: true, config: validFtpConfig };
 		readdirSpy.mockReturnValue(["assets", ".nuvem"]);
+		forceInteractiveTestEnv();
 		ftpCmdMocks.confirm.mockResolvedValueOnce(false);
 		const rmSpy = vi.spyOn(fs, "rmSync").mockImplementation(() => undefined);
 

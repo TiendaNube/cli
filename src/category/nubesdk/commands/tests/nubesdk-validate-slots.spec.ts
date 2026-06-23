@@ -7,8 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const log = vi.fn();
 const error = vi.fn();
 
-vi.mock("../../../../nube-cli-logger", () => ({
-	NubeCliLogger: vi.fn().mockImplementation(() => ({
+vi.mock("../../../../cli-logger", () => ({
+	CliLogger: vi.fn().mockImplementation(() => ({
 		Log: log,
 		Error: error,
 	})),

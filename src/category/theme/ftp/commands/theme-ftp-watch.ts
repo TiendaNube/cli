@@ -3,8 +3,9 @@ import path from "node:path";
 import chokidar from "chokidar";
 import type { Command } from "commander";
 import puppeteer, { type Browser, type Page } from "puppeteer";
+import { CliError, runAction } from "../../../../cli-action";
 import { getCliExecutableName } from "../../../../cli-executable-name";
-import { NubeCliLogger } from "../../../../nube-cli-logger";
+import { CliLogger } from "../../../../cli-logger";
 import { ThemeFtpClient } from "../theme-ftp-client";
 import type { ThemeFtpClientConfig } from "../theme-ftp-client-config";
 import { ThemeFtpConfigManager } from "../theme-ftp-config-manager";
@@ -16,7 +17,7 @@ type BrowserSetupResult = {
 };
 
 export class ThemeFtpWatchCommand {
-	private logger = new NubeCliLogger();
+	private logger = new CliLogger();
 	private configurationManager = new ThemeFtpConfigManager();
 
 	private RunWithTrace = async (action: () => Promise<void>) => {
@@ -57,16 +58,14 @@ export class ThemeFtpWatchCommand {
 		browser: boolean;
 	}): Promise<void> {
 		if (!this.configurationManager.IsSet()) {
-			this.logger.Error(
+			throw new CliError(
 				`Store configuration not found. Please run ${getCliExecutableName()} theme ftp setup first.`,
 			);
-			return;
 		}
 
 		const loaded = this.configurationManager.TryLoad();
 		if (!loaded.success) {
-			this.logger.Error(loaded.error);
-			return;
+			throw new CliError(loaded.error);
 		}
 		const ftpConfig: ThemeFtpClientConfig = loaded.config.ftp;
 		ftpConfig.verbose = options.v;
@@ -188,8 +187,10 @@ export class ThemeFtpWatchCommand {
 				"Do not open the store in a browser with automatic reloading, only watch for file changes",
 			)
 			.option("-v", "Enable verbose logging", false)
-			.action(async (options) => {
-				await this.Execute(options);
-			});
+			.action(
+				runAction((options: { v: boolean; browser: boolean }) =>
+					this.Execute(options),
+				),
+			);
 	}
 }

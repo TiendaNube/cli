@@ -1,3 +1,4 @@
+import { CliError } from "../../cli-action";
 import { parseInstallationsList } from "./api/theme-api-response-parsers";
 import type { ThemeFtpConfig } from "./ftp/theme-ftp-config";
 
@@ -55,30 +56,33 @@ export async function findProductiveThemeId(client: {
 	return { ok: true, id: first.id };
 }
 
+/**
+ * Resolves the theme id, consulting the productive theme when `--published` is
+ * set. Throws `CliError` on `--published`-specific failures (bad combo, no/many
+ * productive themes, listing failure). Returns `null` only when nothing is
+ * resolvable yet in the non-published path, so callers may prompt as a fallback.
+ */
 export async function resolveThemeIdWithProductive(args: {
 	options: { themeId?: string; published?: boolean };
 	config: ThemeApiConfig | undefined;
 	getClient: () => { listInstallations: () => Promise<unknown> };
-	logger: { Error: (msg: string) => void };
 }): Promise<string | null> {
-	const { options, config, getClient, logger } = args;
+	const { options, config, getClient } = args;
 	if (options.published && options.themeId) {
-		logger.Error("--published cannot be combined with --theme-id");
-		return null;
+		throw new CliError("--published cannot be combined with --theme-id");
 	}
 	if (options.published) {
+		let found: ProductiveThemeLookup;
 		try {
-			const found = await findProductiveThemeId(getClient());
-			if (!found.ok) {
-				logger.Error(found.error);
-				return null;
-			}
-			return found.id;
+			found = await findProductiveThemeId(getClient());
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : String(err);
-			logger.Error(`Failed to list themes: ${msg}`);
-			return null;
+			throw new CliError(`Failed to list themes: ${msg}`);
 		}
+		if (!found.ok) {
+			throw new CliError(found.error);
+		}
+		return found.id;
 	}
 	return resolveThemeId(options.themeId, config);
 }

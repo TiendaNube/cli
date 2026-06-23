@@ -1,4 +1,5 @@
-import type { NubeCliLogger } from "../../../nube-cli-logger";
+import { CliError } from "../../../cli-action";
+import type { CliLogger } from "../../../cli-logger";
 
 /**
  * Parses repeated `--header "Key: Value"` CLI inputs into a header record.
@@ -47,13 +48,12 @@ export function parseExtraHeaderEntries(entries: string[]): ParsedExtraHeaders {
 
 /**
  * Parses `--header` CLI input, warns on stderr when Authentication is overridden,
- * and surfaces parse errors via `logger.Error`. Returns null if input was malformed
- * (caller should abort) or a (possibly empty) header map otherwise.
+ * and throws `CliError` on malformed input. Returns a (possibly empty) header map.
  */
 export function resolveExtraHeadersFromCli(
 	raw: string[] | undefined,
-	logger: NubeCliLogger,
-): Record<string, string> | null {
+	logger: CliLogger,
+): Record<string, string> {
 	if (!raw || raw.length === 0) {
 		return {};
 	}
@@ -61,8 +61,7 @@ export function resolveExtraHeadersFromCli(
 	try {
 		parsed = parseExtraHeaderEntries(raw);
 	} catch (err) {
-		logger.Error(err instanceof Error ? err.message : String(err));
-		return null;
+		throw new CliError(err instanceof Error ? err.message : String(err));
 	}
 	if (parsed.authOverridden) {
 		logger.Warn(
