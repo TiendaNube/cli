@@ -148,7 +148,7 @@ describe("ThemeApiPullCommand", () => {
 			},
 		});
 		readdirSpy.mockReturnValue([
-			"assets",
+			"sections",
 			"templates",
 			"manifest.json",
 			".nuvem",
@@ -170,7 +170,7 @@ describe("ThemeApiPullCommand", () => {
 		const removed = rmSpy.mock.calls.map((call) =>
 			path.basename(String(call[0])),
 		);
-		expect(removed.sort()).toEqual(["assets", "manifest.json", "templates"]);
+		expect(removed.sort()).toEqual(["manifest.json", "sections", "templates"]);
 		expect(removed).not.toContain(".nuvem");
 		expect(removed).not.toContain(".git");
 		expect(themeApiCmdMocks.getFiles).toHaveBeenCalled();
@@ -225,7 +225,7 @@ describe("ThemeApiPullCommand", () => {
 				themeId: "4542075",
 			},
 		};
-		readdirSpy.mockReturnValue(["assets", ".nuvem"]);
+		readdirSpy.mockReturnValue(["sections", ".nuvem"]);
 		forceInteractiveTestEnv();
 		themeApiCmdMocks.confirm.mockResolvedValueOnce(false);
 		const rmSpy = vi.spyOn(fs, "rmSync").mockImplementation(() => undefined);
@@ -290,7 +290,7 @@ describe("ThemeApiPullCommand", () => {
 			files: [],
 			installation: null,
 		});
-		readdirSpy.mockReturnValue(["assets", ".nuvem"]);
+		readdirSpy.mockReturnValue(["sections", ".nuvem"]);
 		const rmSpy = vi.spyOn(fs, "rmSync").mockImplementation(() => undefined);
 		const mkdirSpy = vi
 			.spyOn(fs, "mkdirSync")
@@ -306,7 +306,7 @@ describe("ThemeApiPullCommand", () => {
 
 		expect(themeApiCmdMocks.confirm).not.toHaveBeenCalled();
 		expect(rmSpy).toHaveBeenCalledTimes(1);
-		expect(path.basename(String(rmSpy.mock.calls[0][0]))).toBe("assets");
+		expect(path.basename(String(rmSpy.mock.calls[0][0]))).toBe("sections");
 		expect(themeApiCmdMocks.getFiles).toHaveBeenCalled();
 
 		rmSpy.mockRestore();
@@ -337,22 +337,22 @@ describe("ThemeApiPullCommand", () => {
 		// total-driven path goes through mapPool.
 		themeApiCmdMocks.getFiles
 			.mockResolvedValueOnce({
-				files: buildPage("p1"),
+				files: buildPage("sections/1"),
 				installation: { id: "4542075" },
 				total,
 			})
 			.mockResolvedValueOnce({
-				files: buildPage("p2"),
+				files: buildPage("sections/2"),
 				installation: { id: "4542075" },
 				total,
 			})
 			.mockResolvedValueOnce({
-				files: buildPage("p3"),
+				files: buildPage("sections/3"),
 				installation: { id: "4542075" },
 				total,
 			})
 			.mockResolvedValueOnce({
-				files: buildPage("p4"),
+				files: buildPage("sections/4"),
 				installation: { id: "4542075" },
 				total,
 			});
@@ -411,7 +411,7 @@ describe("ThemeApiPullCommand", () => {
 			}));
 		// Page 1 resolves immediately so the loop progresses.
 		themeApiCmdMocks.getFiles.mockResolvedValueOnce({
-			files: buildPage("p1"),
+			files: buildPage("sections/1"),
 			installation: { id: "4542075" },
 			total,
 		});
@@ -421,7 +421,7 @@ describe("ThemeApiPullCommand", () => {
 		const page2Deferred = Promise.withResolvers<unknown>();
 		themeApiCmdMocks.getFiles.mockReturnValueOnce(page2Deferred.promise);
 		themeApiCmdMocks.getFiles.mockResolvedValueOnce({
-			files: buildPage("p3"),
+			files: buildPage("sections/3"),
 			installation: { id: "4542075" },
 			total,
 		});
@@ -447,7 +447,7 @@ describe("ThemeApiPullCommand", () => {
 
 		// Release page 2 and let the pull finish cleanly.
 		page2Deferred.resolve({
-			files: buildPage("p2"),
+			files: buildPage("sections/2"),
 			installation: { id: "4542075" },
 			total,
 		});
@@ -470,11 +470,11 @@ describe("ThemeApiPullCommand", () => {
 		};
 		const pageSize = THEME_API_PULL_PAGE_SIZE;
 		const page1 = Array.from({ length: pageSize }, (_, i) => ({
-			path: `assets/file-${i}.js`,
+			path: `sections/file-${i}.js`,
 			format: "text",
 			content: "x",
 		}));
-		const page2 = [{ path: "assets/last.js", format: "text", content: "x" }];
+		const page2 = [{ path: "sections/last.js", format: "text", content: "x" }];
 		themeApiCmdMocks.getFiles
 			.mockResolvedValueOnce({
 				files: page1,

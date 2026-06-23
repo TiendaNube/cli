@@ -29,7 +29,10 @@ import {
 	canPushRelativePathWhenNotForked,
 	isInstallationForked,
 } from "../theme-api-fork-rules";
-import { themeUploadRelativePath } from "../theme-api-workspace-files";
+import {
+	isPushUnsupported,
+	themeUploadRelativePath,
+} from "../theme-api-workspace-files";
 
 /** Storefront URL with preview theme (matches theme preview query param). */
 function buildStorefrontUrlWithThemeInstallationId(
@@ -210,6 +213,10 @@ export class ThemeApiWatchCommand {
 			if (norm === "manifest.json") {
 				return;
 			}
+			if (isPushUnsupported(norm)) {
+				this.logger.Log(`Skipped: push is not yet supported for ${norm}`);
+				return;
+			}
 			if (!forked && !canPushRelativePathWhenNotForked(norm)) {
 				this.logger.Log(`Skipped (not forked): ${norm}`);
 				return;
@@ -243,6 +250,9 @@ export class ThemeApiWatchCommand {
 			}
 			const norm = rel.replace(/\\/g, "/");
 			if (norm === "manifest.json") {
+				return;
+			}
+			if (isPushUnsupported(norm)) {
 				return;
 			}
 			if (!forked && !canPushRelativePathWhenNotForked(norm)) {

@@ -31,6 +31,22 @@ export const THEME_API_BATCH_MAX_BODY_BYTES = 900 * 1024;
 /** Page size for the offset/limit loop in `theme pull` (API mode). */
 export const THEME_API_PULL_PAGE_SIZE = 50;
 
+/** Path prefixes (folders or exact files) included in pull/push sync. */
+export const SYNC_PREFIXES = [
+	"blocks",
+	"config",
+	"custom",
+	"layouts",
+	"sections",
+	"snippets",
+	"static",
+	"templates",
+	"translations",
+	"manifest.json",
+];
+
+export const PUSH_UNSUPPORTED_PREFIXES = ["custom"];
+
 export function normalizeApiBaseUrl(url: string): string {
 	return url.trim().replace(/\/+$/, "");
 }

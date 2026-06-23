@@ -28,7 +28,7 @@ describe("ThemeFtpTools", () => {
 
 describe("ThemeFtpTools.isExcludedFromThemeUpload", () => {
 	it("allows normal theme paths", () => {
-		expect(ThemeFtpTools.isExcludedFromThemeUpload("snippets/foo.liquid")).toBe(
+		expect(ThemeFtpTools.isExcludedFromThemeUpload("snippets/foo.tpl")).toBe(
 			false,
 		);
 		expect(ThemeFtpTools.isExcludedFromThemeUpload("templates/index.tpl")).toBe(

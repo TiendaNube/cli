@@ -154,7 +154,7 @@ describe("ThemeApiPushCommand", () => {
 
 		it("deletes remote-only files that no longer exist locally", async () => {
 			themeApiCmdMocks.getFileHashes.mockResolvedValue({
-				hashes: { "sections/old.liquid": "abc" },
+				hashes: { "sections/old.tpl": "abc" },
 			});
 			const program = programWithThemeCommand((c) => {
 				new ThemeApiPushCommand().Bind(c);
@@ -162,7 +162,7 @@ describe("ThemeApiPushCommand", () => {
 			await parseWithTail(program, ["theme", "push", "-y"]);
 			const [, , toDelete] =
 				themeApiCmdMocks.batchUpdateFiles.mock.calls[0] ?? [];
-			expect(toDelete).toContain("sections/old.liquid");
+			expect(toDelete).toContain("sections/old.tpl");
 		});
 
 		it("never deletes manifest.json even if remote-only", async () => {
@@ -188,13 +188,13 @@ describe("ThemeApiPushCommand", () => {
 				const hash = md5(content);
 				// sections/ is theme code — not pushable when not forked
 				themeApiCmdMocks.getFileHashes.mockResolvedValue({
-					hashes: { "sections/header.liquid": hash },
+					hashes: { "sections/header.tpl": hash },
 				});
 				const readFileSpy = vi
 					.spyOn(fs, "readFileSync")
 					.mockReturnValue(Buffer.from(content, "utf8"));
 				readdirpMocks.readdirpPromise.mockResolvedValue([
-					{ fullPath: path.join(cwd, "sections", "header.liquid") },
+					{ fullPath: path.join(cwd, "sections", "header.tpl") },
 				]);
 
 				const program = programWithThemeCommand((c) => {
@@ -219,13 +219,13 @@ describe("ThemeApiPushCommand", () => {
 			it("logs skipped files with changes and includes them in skipped counter", async () => {
 				// sections/ is theme code — not pushable when not forked
 				themeApiCmdMocks.getFileHashes.mockResolvedValue({
-					hashes: { "sections/header.liquid": "oldhash" },
+					hashes: { "sections/header.tpl": "oldhash" },
 				});
 				const readFileSpy = vi
 					.spyOn(fs, "readFileSync")
 					.mockReturnValue(Buffer.from("new content", "utf8"));
 				readdirpMocks.readdirpPromise.mockResolvedValue([
-					{ fullPath: path.join(cwd, "sections", "header.liquid") },
+					{ fullPath: path.join(cwd, "sections", "header.tpl") },
 				]);
 
 				const program = programWithThemeCommand((c) => {
@@ -239,7 +239,7 @@ describe("ThemeApiPushCommand", () => {
 				expect(
 					logs.some((l) =>
 						l.includes(
-							"Skipped (not forked, but has changes): sections/header.liquid",
+							"Skipped (not forked, but has changes): sections/header.tpl",
 						),
 					),
 				).toBe(true);
@@ -258,7 +258,7 @@ describe("ThemeApiPushCommand", () => {
 					.spyOn(fs, "readFileSync")
 					.mockReturnValue(Buffer.from("new file content", "utf8"));
 				readdirpMocks.readdirpPromise.mockResolvedValue([
-					{ fullPath: path.join(cwd, "sections", "new.liquid") },
+					{ fullPath: path.join(cwd, "sections", "new.tpl") },
 				]);
 
 				const program = programWithThemeCommand((c) => {
@@ -282,19 +282,19 @@ describe("ThemeApiPushCommand", () => {
 			it("unchanged counter sums forked-allowed unchanged files and non-forked unchanged files", async () => {
 				const content = "same";
 				const hash = md5(content);
-				// custom/ is pushable when not forked, sections/ is not
+				// templates/ is pushable when not forked, sections/ is not
 				themeApiCmdMocks.getFileHashes.mockResolvedValue({
 					hashes: {
-						"custom/style.css": hash,
-						"sections/header.liquid": hash,
+						"templates/home.tpl": hash,
+						"sections/header.tpl": hash,
 					},
 				});
 				const readFileSpy = vi
 					.spyOn(fs, "readFileSync")
 					.mockReturnValue(Buffer.from(content, "utf8"));
 				readdirpMocks.readdirpPromise.mockResolvedValue([
-					{ fullPath: path.join(cwd, "custom", "style.css") },
-					{ fullPath: path.join(cwd, "sections", "header.liquid") },
+					{ fullPath: path.join(cwd, "templates", "home.tpl") },
+					{ fullPath: path.join(cwd, "sections", "header.tpl") },
 				]);
 
 				const program = programWithThemeCommand((c) => {
@@ -418,8 +418,8 @@ describe("ThemeApiPushCommand", () => {
 			themeApiCmdMocks.getInstallation.mockResolvedValue({ forked: false });
 			themeApiCmdMocks.getFileHashes.mockResolvedValue({
 				hashes: {
-					"sections/old.liquid": "abc",
-					"custom/orphan.css": "def",
+					"sections/old.tpl": "abc",
+					"templates/pages/orphan.json": "def",
 				},
 			});
 			const program = programWithThemeCommand((c) => {
@@ -428,21 +428,21 @@ describe("ThemeApiPushCommand", () => {
 			await parseWithTail(program, ["theme", "push", "-y"]);
 			const [, , toDelete] =
 				themeApiCmdMocks.batchUpdateFiles.mock.calls[0] ?? [];
-			expect(toDelete).not.toContain("sections/old.liquid");
-			expect(toDelete).toContain("custom/orphan.css");
+			expect(toDelete).not.toContain("sections/old.tpl");
+			expect(toDelete).toContain("templates/pages/orphan.json");
 		});
 
 		it("skips unchanged files (same MD5 hash)", async () => {
 			const content = "unchanged content";
 			const hash = md5(content);
 			themeApiCmdMocks.getFileHashes.mockResolvedValue({
-				hashes: { "sections/header.liquid": hash },
+				hashes: { "sections/header.tpl": hash },
 			});
 			const readFileSpy = vi
 				.spyOn(fs, "readFileSync")
 				.mockReturnValue(Buffer.from(content, "utf8"));
 			readdirpMocks.readdirpPromise.mockResolvedValue([
-				{ fullPath: path.join(cwd, "sections", "header.liquid") },
+				{ fullPath: path.join(cwd, "sections", "header.tpl") },
 			]);
 
 			const program = programWithThemeCommand((c) => {
@@ -452,7 +452,7 @@ describe("ThemeApiPushCommand", () => {
 			const [, toUpsert] =
 				themeApiCmdMocks.batchUpdateFiles.mock.calls[0] ?? [];
 			const paths = (toUpsert as { path: string }[]).map((f) => f.path);
-			expect(paths).not.toContain("sections/header.liquid");
+			expect(paths).not.toContain("sections/header.tpl");
 
 			const logs: string[] = (
 				themeApiCmdMocks.log.mock.calls as string[][]
@@ -465,13 +465,13 @@ describe("ThemeApiPushCommand", () => {
 
 		it("uploads changed files (different MD5 hash)", async () => {
 			themeApiCmdMocks.getFileHashes.mockResolvedValue({
-				hashes: { "sections/header.liquid": "oldhash" },
+				hashes: { "sections/header.tpl": "oldhash" },
 			});
 			const readFileSpy = vi
 				.spyOn(fs, "readFileSync")
 				.mockReturnValue(Buffer.from("new content", "utf8"));
 			readdirpMocks.readdirpPromise.mockResolvedValue([
-				{ fullPath: path.join(cwd, "sections", "header.liquid") },
+				{ fullPath: path.join(cwd, "sections", "header.tpl") },
 			]);
 
 			const program = programWithThemeCommand((c) => {
@@ -481,7 +481,7 @@ describe("ThemeApiPushCommand", () => {
 			const [, toUpsert] =
 				themeApiCmdMocks.batchUpdateFiles.mock.calls[0] ?? [];
 			const paths = (toUpsert as { path: string }[]).map((f) => f.path);
-			expect(paths).toContain("sections/header.liquid");
+			expect(paths).toContain("sections/header.tpl");
 
 			readFileSpy.mockRestore();
 		});
@@ -491,7 +491,7 @@ describe("ThemeApiPushCommand", () => {
 				.spyOn(fs, "readFileSync")
 				.mockReturnValue(Buffer.from("content", "utf8"));
 			readdirpMocks.readdirpPromise.mockResolvedValue([
-				{ fullPath: path.join(cwd, "sections", "new.liquid") },
+				{ fullPath: path.join(cwd, "sections", "new.tpl") },
 			]);
 
 			const program = programWithThemeCommand((c) => {
@@ -502,7 +502,7 @@ describe("ThemeApiPushCommand", () => {
 				themeApiCmdMocks.batchUpdateFiles.mock.calls[0] ?? [];
 			expect(toUpsert).toEqual(
 				expect.arrayContaining([
-					expect.objectContaining({ path: "sections/new.liquid" }),
+					expect.objectContaining({ path: "sections/new.tpl" }),
 				]),
 			);
 
@@ -514,16 +514,16 @@ describe("ThemeApiPushCommand", () => {
 			const hash = md5(content);
 			themeApiCmdMocks.getFileHashes.mockResolvedValue({
 				hashes: {
-					"sections/a.liquid": hash,
-					"sections/b.liquid": hash,
+					"sections/a.tpl": hash,
+					"sections/b.tpl": hash,
 				},
 			});
 			const readFileSpy = vi
 				.spyOn(fs, "readFileSync")
 				.mockReturnValue(Buffer.from(content, "utf8"));
 			readdirpMocks.readdirpPromise.mockResolvedValue([
-				{ fullPath: path.join(cwd, "sections", "a.liquid") },
-				{ fullPath: path.join(cwd, "sections", "b.liquid") },
+				{ fullPath: path.join(cwd, "sections", "a.tpl") },
+				{ fullPath: path.join(cwd, "sections", "b.tpl") },
 			]);
 
 			const program = programWithThemeCommand((c) => {

@@ -36,7 +36,8 @@ import {
 } from "../theme-api-fork-rules";
 import { parseFileHashesResponse } from "../theme-api-response-parsers";
 import {
-	isHiddenWorkspacePath,
+	isPushUnsupported,
+	shouldSync,
 	themeUploadRelativePath,
 } from "../theme-api-workspace-files";
 
@@ -153,8 +154,8 @@ export class ThemeApiPushCommand {
 				client.getInstallation(themeId),
 				readdirpPromise(cwd, {
 					alwaysStat: true,
-					directoryFilter: (entry) => !isHiddenWorkspacePath(entry.path),
-					fileFilter: (entry) => !isHiddenWorkspacePath(entry.path),
+					directoryFilter: (entry) => shouldSync(entry.path),
+					fileFilter: (entry) => shouldSync(entry.path),
 				}).then((entries) => entries.map((e) => e.fullPath)),
 				client.getFileHashes(themeId),
 			]);
@@ -169,7 +170,8 @@ export class ThemeApiPushCommand {
 		const remoteFiltered = new Map(
 			[...remoteHashMap].filter(([p]) => {
 				if (p === "manifest.json") return false;
-				if (isHiddenWorkspacePath(p)) return false;
+				if (!shouldSync(p)) return false;
+				if (isPushUnsupported(p)) return false;
 				if (!forked && !canPushRelativePathWhenNotForked(p)) return false;
 				return true;
 			}),
@@ -179,12 +181,22 @@ export class ThemeApiPushCommand {
 		let readFailCount = 0;
 		const skippedNotForked: string[] = [];
 		let unchangedNonForkedCount = 0;
+		let pushUnsupportedLogged = false;
 
 		for (const full of filePaths) {
 			const rel = themeUploadRelativePath(cwd, full);
 			if (rel === null) continue;
 			const norm = rel.replace(/\\/g, "/");
 			if (norm === "manifest.json") continue;
+			if (isPushUnsupported(norm)) {
+				if (!pushUnsupportedLogged) {
+					this.logger.Log(
+						"  Skipping custom/ files: push is not yet supported for this folder",
+					);
+					pushUnsupportedLogged = true;
+				}
+				continue;
+			}
 
 			const canPush = forked || canPushRelativePathWhenNotForked(norm);
 

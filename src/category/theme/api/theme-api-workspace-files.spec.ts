@@ -3,50 +3,60 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-	cleanThemeWorkspace,
-	isHiddenWorkspacePath,
 	listThemeEntries,
 	relativeToThemeRoot,
+	removeThemeEntries,
+	shouldSync,
 	themeUploadRelativePath,
 } from "./theme-api-workspace-files";
 
-describe("isHiddenWorkspacePath", () => {
-	it("allows normal theme paths", () => {
-		expect(isHiddenWorkspacePath("snippets/foo.liquid")).toBe(false);
-		expect(isHiddenWorkspacePath("templates/index.tpl")).toBe(false);
-		expect(isHiddenWorkspacePath("foo")).toBe(false);
+describe("shouldSync", () => {
+	it("allows paths within sync prefixes", () => {
+		expect(shouldSync("snippets/foo.tpl")).toBe(true);
+		expect(shouldSync("templates/index.tpl")).toBe(true);
+		expect(shouldSync("manifest.json")).toBe(true);
 	});
 
-	it("flags .nuvem and other dotfiles at root", () => {
-		expect(isHiddenWorkspacePath(".nuvem")).toBe(true);
-		expect(isHiddenWorkspacePath(".gitignore")).toBe(true);
+	it("rejects paths outside sync prefixes", () => {
+		expect(shouldSync("foo")).toBe(false);
+		expect(shouldSync("README.md")).toBe(false);
+		expect(shouldSync("package.json")).toBe(false);
 	});
 
-	it("flags paths under hidden directories", () => {
-		expect(isHiddenWorkspacePath(".git/objects/ab/cdef")).toBe(true);
-		expect(isHiddenWorkspacePath("src/.hidden/file.txt")).toBe(true);
+	it("rejects hidden paths even within sync prefixes", () => {
+		expect(shouldSync(".nuvem")).toBe(false);
+		expect(shouldSync(".gitignore")).toBe(false);
+	});
+
+	it("rejects paths under hidden directories", () => {
+		expect(shouldSync(".git/objects/ab/cdef")).toBe(false);
+		expect(shouldSync("templates/.hidden/file.txt")).toBe(false);
 	});
 
 	it("handles Windows-style separators", () => {
-		expect(isHiddenWorkspacePath("src\\.vscode\\x")).toBe(true);
-		expect(isHiddenWorkspacePath("ok\\sub\\file.txt")).toBe(false);
+		expect(shouldSync("templates\\.vscode\\x")).toBe(false);
+		expect(shouldSync("templates\\sub\\file.txt")).toBe(true);
 	});
 
 	it("does not treat parent-dir segments (..) as hidden", () => {
-		expect(isHiddenWorkspacePath("../real/theme/file.tpl")).toBe(false);
+		expect(shouldSync("../real/theme/file.tpl")).toBe(false);
 	});
 });
 
 describe("listThemeEntries", () => {
-	it("returns only non-hidden top-level entries", () => {
+	it("returns only entries within sync scope", () => {
 		const root = fs.mkdtempSync(path.join(os.tmpdir(), "api-list-"));
 		fs.writeFileSync(path.join(root, ".nuvem"), "");
 		fs.writeFileSync(path.join(root, ".gitignore"), "");
 		fs.mkdirSync(path.join(root, ".vscode"));
-		fs.mkdirSync(path.join(root, "assets"));
+		fs.mkdirSync(path.join(root, "templates"));
 		fs.writeFileSync(path.join(root, "manifest.json"), "{}");
+		fs.writeFileSync(path.join(root, "README.md"), "");
 
-		expect(listThemeEntries(root).sort()).toEqual(["assets", "manifest.json"]);
+		expect(listThemeEntries(root).sort()).toEqual([
+			"manifest.json",
+			"templates",
+		]);
 
 		fs.rmSync(root, { recursive: true, force: true });
 	});
@@ -134,7 +144,7 @@ describe("themeUploadRelativePath", () => {
 	});
 });
 
-describe("cleanThemeWorkspace", () => {
+describe("removeThemeEntries", () => {
 	it("removes the given entries recursively", () => {
 		const root = fs.mkdtempSync(path.join(os.tmpdir(), "api-clean-"));
 		fs.mkdirSync(path.join(root, "assets"));
@@ -143,7 +153,7 @@ describe("cleanThemeWorkspace", () => {
 		fs.writeFileSync(path.join(root, "templates", "index.tpl"), "x");
 		fs.writeFileSync(path.join(root, ".nuvem"), "config");
 
-		cleanThemeWorkspace(root, ["assets", "templates"]);
+		removeThemeEntries(root, ["assets", "templates"]);
 
 		expect(fs.existsSync(path.join(root, "assets"))).toBe(false);
 		expect(fs.existsSync(path.join(root, "templates"))).toBe(false);
@@ -156,7 +166,7 @@ describe("cleanThemeWorkspace", () => {
 		const root = fs.mkdtempSync(path.join(os.tmpdir(), "api-clean-"));
 		fs.writeFileSync(path.join(root, ".nuvem"), "config");
 
-		expect(() => cleanThemeWorkspace(root, [])).not.toThrow();
+		expect(() => removeThemeEntries(root, [])).not.toThrow();
 		expect(fs.existsSync(path.join(root, ".nuvem"))).toBe(true);
 
 		fs.rmSync(root, { recursive: true, force: true });
