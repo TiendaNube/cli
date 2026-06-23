@@ -1,5 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
+import {
+	PUSH_UNSUPPORTED_PREFIXES,
+	SYNC_PREFIXES,
+} from "./theme-api-constants";
 
 function isHiddenSegment(segment: string): boolean {
 	return (
@@ -15,7 +19,7 @@ function isHiddenSegment(segment: string): boolean {
  * (e.g. `.nuvem`, `.git`, `foo/.bar/baz`) — those are not part of the theme
  * content exchanged with the API.
  */
-export function isHiddenWorkspacePath(relativePath: string): boolean {
+function isHiddenWorkspacePath(relativePath: string): boolean {
 	const normalized = path.normalize(relativePath);
 	return normalized
 		.split(/[/\\]/)
@@ -23,16 +27,31 @@ export function isHiddenWorkspacePath(relativePath: string): boolean {
 		.some(isHiddenSegment);
 }
 
-/** Top-level entries in `root` that count as theme content (non-hidden). */
-export function listThemeEntries(root: string): string[] {
-	return fs.readdirSync(root).filter((name) => !isHiddenWorkspacePath(name));
+export function isInSyncScope(relativePath: string): boolean {
+	const norm = relativePath.replace(/\\/g, "/");
+	return SYNC_PREFIXES.some(
+		(prefix) => norm === prefix || norm.startsWith(`${prefix}/`),
+	);
 }
 
-/**
- * Removes the given top-level entries from `root`. Pass only names obtained via
- * `listThemeEntries` so hidden entries (`.nuvem`, `.git`, …) are never touched.
- */
-export function cleanThemeWorkspace(root: string, entries: string[]): void {
+export function shouldSync(relativePath: string): boolean {
+	return !isHiddenWorkspacePath(relativePath) && isInSyncScope(relativePath);
+}
+
+export function isPushUnsupported(relativePath: string): boolean {
+	const norm = relativePath.replace(/\\/g, "/");
+	return PUSH_UNSUPPORTED_PREFIXES.some(
+		(prefix) => norm === prefix || norm.startsWith(`${prefix}/`),
+	);
+}
+
+/** Top-level entries in `root` that belong to the CLI sync scope (non-hidden and matching SYNC_PREFIXES). */
+export function listThemeEntries(root: string): string[] {
+	return fs.readdirSync(root).filter(shouldSync);
+}
+
+/** Removes the given top-level entries from `root` (typically obtained via `listThemeEntries`). */
+export function removeThemeEntries(root: string, entries: string[]): void {
 	for (const name of entries) {
 		fs.rmSync(path.join(root, name), { recursive: true, force: true });
 	}
@@ -107,11 +126,7 @@ export function themeUploadRelativePath(
 	absolutePath: string,
 ): string | null {
 	const rel = relativeToThemeRoot(themeRoot, absolutePath);
-	if (
-		rel.startsWith("..") ||
-		path.isAbsolute(rel) ||
-		isHiddenWorkspacePath(rel)
-	) {
+	if (rel.startsWith("..") || path.isAbsolute(rel) || !shouldSync(rel)) {
 		return null;
 	}
 	return rel;

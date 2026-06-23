@@ -32,9 +32,9 @@ import {
 	parseGetFilesResponse,
 } from "../theme-api-response-parsers";
 import {
-	cleanThemeWorkspace,
-	isHiddenWorkspacePath,
 	listThemeEntries,
+	removeThemeEntries,
+	shouldSync,
 } from "../theme-api-workspace-files";
 
 type PullOptions = {
@@ -96,12 +96,12 @@ export class ThemeApiPullCommand {
 			const confirmed = await confirmOrAbort(
 				command,
 				this.interaction,
-				`Current directory has ${themeEntries.length} non-hidden file(s)/folder(s) that will be deleted before pulling (hidden entries like .nuvem and .git are preserved). Do you want to continue?`,
+				`Current directory has ${themeEntries.length} synced file(s)/folder(s) that will be deleted before pulling (files outside sync scope are preserved). Do you want to continue?`,
 			);
 			if (!confirmed) {
 				return;
 			}
-			cleanThemeWorkspace(".", themeEntries);
+			removeThemeEntries(".", themeEntries);
 		}
 
 		this.logger.Log("Downloading theme files from API…");
@@ -151,7 +151,7 @@ export class ThemeApiPullCommand {
 		const cwd = path.resolve(".");
 		for (const file of allFiles) {
 			const rel = file.path.replace(/\\/g, "/");
-			if (isHiddenWorkspacePath(rel)) {
+			if (!shouldSync(rel)) {
 				continue;
 			}
 			if (!isPathInsideThemeRoot(cwd, rel)) {
