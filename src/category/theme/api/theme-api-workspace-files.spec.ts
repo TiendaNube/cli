@@ -11,6 +11,10 @@ import {
 } from "./theme-api-workspace-files";
 
 describe("shouldSync", () => {
+	it("allows root path", () => {
+		expect(shouldSync("")).toBe(true);
+	});
+
 	it("allows paths within sync prefixes", () => {
 		expect(shouldSync("snippets/foo.tpl")).toBe(true);
 		expect(shouldSync("templates/index.tpl")).toBe(true);

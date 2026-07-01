@@ -1,6 +1,6 @@
 {
 	"name": "@tiendanube/cli",
-	"version": "2.0.4",
+	"version": "2.0.5",
 	"description": "A command-line interface tool to interact with Nuvemshop/Tiendanube services.",
 	"main": "./dist/cli.js",
 	"scripts": {
