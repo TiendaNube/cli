@@ -29,8 +29,11 @@ function isHiddenWorkspacePath(relativePath: string): boolean {
 
 export function isInSyncScope(relativePath: string): boolean {
 	const norm = relativePath.replace(/\\/g, "/");
-	return SYNC_PREFIXES.some(
-		(prefix) => norm === prefix || norm.startsWith(`${prefix}/`),
+	return (
+		relativePath === "" || // Allows root path
+		SYNC_PREFIXES.some(
+			(prefix) => norm === prefix || norm.startsWith(`${prefix}/`),
+		)
 	);
 }
 
