@@ -8,6 +8,7 @@ import { ThemeApiInstallationForkCommand } from "./commands/theme-api-installati
 import { ThemeApiInstallationListCommand } from "./commands/theme-api-installation-list";
 import { ThemeApiInstallationPreviewCommand } from "./commands/theme-api-installation-preview";
 import { ThemeApiInstallationPublishCommand } from "./commands/theme-api-installation-publish";
+import { ThemeApiInstallationUnforkCommand } from "./commands/theme-api-installation-unfork";
 
 export class ThemeApiDeprecatedInstallationCommands {
 	private logger = new CliLogger();
@@ -29,6 +30,7 @@ export class ThemeApiDeprecatedInstallationCommands {
 		new ThemeApiInstallationCloneCommand().Bind(installation);
 		new ThemeApiInstallationPublishCommand().Bind(installation);
 		new ThemeApiInstallationForkCommand().Bind(installation);
+		new ThemeApiInstallationUnforkCommand().Bind(installation);
 		new ThemeApiInstallationPreviewCommand().Bind(installation);
 		new ThemeApiInstallationDeleteCommand().Bind(installation);
 		new ThemeApiInstallationCurrentCommand().Bind(installation);

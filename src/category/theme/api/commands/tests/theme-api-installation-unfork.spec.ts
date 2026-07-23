@@ -1,6 +1,6 @@
 import "./theme-api-command-test-mocks";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ThemeApiInstallationCloneCommand } from "../theme-api-installation-clone";
+import { ThemeApiInstallationUnforkCommand } from "../theme-api-installation-unfork";
 import { parseWithTail, programWithThemeCommand } from "./helpers";
 import type { StderrWriteSpy } from "./stderr-write-spy";
 import type { StdoutWriteSpy } from "./stdout-write-spy";
@@ -9,7 +9,7 @@ import {
 	themeApiCmdMocks,
 } from "./theme-api-command-test-mocks";
 
-describe("ThemeApiInstallationCloneCommand", () => {
+describe("ThemeApiInstallationUnforkCommand", () => {
 	let stdoutSpy: StdoutWriteSpy;
 	let stderrSpy: StderrWriteSpy;
 
@@ -28,13 +28,13 @@ describe("ThemeApiInstallationCloneCommand", () => {
 
 	it("errors when config load fails", async () => {
 		const program = programWithThemeCommand((c) => {
-			new ThemeApiInstallationCloneCommand().Bind(c);
+			new ThemeApiInstallationUnforkCommand().Bind(c);
 		});
-		await parseWithTail(program, ["theme", "clone", "--title", "New", "-y"]);
+		await parseWithTail(program, ["theme", "unfork", "--title", "New", "-y"]);
 		expect(themeApiCmdMocks.error).toHaveBeenCalledWith("no config");
 	});
 
-	it("defaults title to '<source> (copy)' when omitted", async () => {
+	it("defaults title to '<source> (unforked)' when omitted", async () => {
 		themeApiCmdMocks.tryLoadResult = {
 			success: true,
 			config: { publicApiToken: "t", storeId: "1", themeId: "10" },
@@ -43,32 +43,32 @@ describe("ThemeApiInstallationCloneCommand", () => {
 			id: 10,
 			title: "My Theme",
 		});
-		themeApiCmdMocks.cloneInstallation.mockResolvedValue({ id: "11" });
+		themeApiCmdMocks.unforkInstallation.mockResolvedValue({ id: "11" });
 		const program = programWithThemeCommand((c) => {
-			new ThemeApiInstallationCloneCommand().Bind(c);
+			new ThemeApiInstallationUnforkCommand().Bind(c);
 		});
-		await parseWithTail(program, ["theme", "clone", "-y"]);
+		await parseWithTail(program, ["theme", "unfork", "-y"]);
 		expect(themeApiCmdMocks.getInstallation).toHaveBeenCalledWith("10");
-		expect(themeApiCmdMocks.cloneInstallation).toHaveBeenCalledWith(
+		expect(themeApiCmdMocks.unforkInstallation).toHaveBeenCalledWith(
 			"10",
-			"My Theme (copy)",
+			"My Theme (unforked)",
 		);
 	});
 
-	it("falls back to 'Cloned draft' when the source has no title", async () => {
+	it("falls back to 'Unforked draft' when the source has no title", async () => {
 		themeApiCmdMocks.tryLoadResult = {
 			success: true,
 			config: { publicApiToken: "t", storeId: "1", themeId: "10" },
 		};
 		themeApiCmdMocks.getInstallation.mockResolvedValue({ id: 10 });
-		themeApiCmdMocks.cloneInstallation.mockResolvedValue({ id: "11" });
+		themeApiCmdMocks.unforkInstallation.mockResolvedValue({ id: "11" });
 		const program = programWithThemeCommand((c) => {
-			new ThemeApiInstallationCloneCommand().Bind(c);
+			new ThemeApiInstallationUnforkCommand().Bind(c);
 		});
-		await parseWithTail(program, ["theme", "clone", "-y"]);
-		expect(themeApiCmdMocks.cloneInstallation).toHaveBeenCalledWith(
+		await parseWithTail(program, ["theme", "unfork", "-y"]);
+		expect(themeApiCmdMocks.unforkInstallation).toHaveBeenCalledWith(
 			"10",
-			"Cloned draft",
+			"Unforked draft",
 		);
 	});
 
@@ -78,15 +78,15 @@ describe("ThemeApiInstallationCloneCommand", () => {
 			config: { publicApiToken: "t", storeId: "1" },
 		};
 		const program = programWithThemeCommand((c) => {
-			new ThemeApiInstallationCloneCommand().Bind(c);
+			new ThemeApiInstallationUnforkCommand().Bind(c);
 		});
-		await parseWithTail(program, ["theme", "clone", "--title", "New", "-y"]);
+		await parseWithTail(program, ["theme", "unfork", "--title", "New", "-y"]);
 		expect(themeApiCmdMocks.error).toHaveBeenCalledWith(
 			"No theme id: pass --theme-id, use --published, or run tiendanube theme pull --theme-id <id> (saves to .nuvem).",
 		);
 	});
 
-	it("calls cloneInstallation with -y and logs new id in text mode", async () => {
+	it("calls unforkInstallation with -y and logs new id in text mode", async () => {
 		themeApiCmdMocks.tryLoadResult = {
 			success: true,
 			config: {
@@ -95,23 +95,23 @@ describe("ThemeApiInstallationCloneCommand", () => {
 				themeId: "10",
 			},
 		};
-		themeApiCmdMocks.cloneInstallation.mockResolvedValue({ id: "11" });
+		themeApiCmdMocks.unforkInstallation.mockResolvedValue({ id: "11" });
 		const program = programWithThemeCommand((c) => {
-			new ThemeApiInstallationCloneCommand().Bind(c);
+			new ThemeApiInstallationUnforkCommand().Bind(c);
 		});
 		await parseWithTail(program, [
 			"theme",
-			"clone",
+			"unfork",
 			"--title",
-			"My copy",
+			"My draft",
 			"-y",
 		]);
-		expect(themeApiCmdMocks.cloneInstallation).toHaveBeenCalledWith(
+		expect(themeApiCmdMocks.unforkInstallation).toHaveBeenCalledWith(
 			"10",
-			"My copy",
+			"My draft",
 		);
 		expect(themeApiCmdMocks.log).toHaveBeenCalledWith(
-			"Theme 10 cloned successfully; new theme 11 was created.",
+			"Theme 10 unforked successfully; new theme 11 was created.",
 		);
 	});
 
@@ -124,15 +124,15 @@ describe("ThemeApiInstallationCloneCommand", () => {
 				themeId: "10",
 			},
 		};
-		themeApiCmdMocks.cloneInstallation.mockResolvedValue({ id: "11" });
+		themeApiCmdMocks.unforkInstallation.mockResolvedValue({ id: "11" });
 		const program = programWithThemeCommand((c) => {
-			new ThemeApiInstallationCloneCommand().Bind(c);
+			new ThemeApiInstallationUnforkCommand().Bind(c);
 		});
 		await parseWithTail(program, [
 			"theme",
-			"clone",
+			"unfork",
 			"--title",
-			"My copy",
+			"My draft",
 			"-y",
 			"--json",
 		]);
@@ -153,21 +153,21 @@ describe("ThemeApiInstallationCloneCommand", () => {
 				{ id: 200, is_productive: true },
 			],
 		});
-		themeApiCmdMocks.cloneInstallation.mockResolvedValue({ id: "300" });
+		themeApiCmdMocks.unforkInstallation.mockResolvedValue({ id: "300" });
 		const program = programWithThemeCommand((c) => {
-			new ThemeApiInstallationCloneCommand().Bind(c);
+			new ThemeApiInstallationUnforkCommand().Bind(c);
 		});
 		await parseWithTail(program, [
 			"theme",
-			"clone",
+			"unfork",
 			"--title",
-			"My copy",
+			"My draft",
 			"--published",
 			"-y",
 		]);
-		expect(themeApiCmdMocks.cloneInstallation).toHaveBeenCalledWith(
+		expect(themeApiCmdMocks.unforkInstallation).toHaveBeenCalledWith(
 			"200",
-			"My copy",
+			"My draft",
 		);
 	});
 
@@ -177,11 +177,11 @@ describe("ThemeApiInstallationCloneCommand", () => {
 			config: { publicApiToken: "t", storeId: "1" },
 		};
 		const program = programWithThemeCommand((c) => {
-			new ThemeApiInstallationCloneCommand().Bind(c);
+			new ThemeApiInstallationUnforkCommand().Bind(c);
 		});
 		await parseWithTail(program, [
 			"theme",
-			"clone",
+			"unfork",
 			"--title",
 			"New",
 			"--published",
@@ -192,7 +192,7 @@ describe("ThemeApiInstallationCloneCommand", () => {
 		expect(themeApiCmdMocks.error).toHaveBeenCalledWith(
 			"--published cannot be combined with --theme-id",
 		);
-		expect(themeApiCmdMocks.cloneInstallation).not.toHaveBeenCalled();
+		expect(themeApiCmdMocks.unforkInstallation).not.toHaveBeenCalled();
 	});
 
 	it("errors when no productive theme exists", async () => {
@@ -204,11 +204,11 @@ describe("ThemeApiInstallationCloneCommand", () => {
 			installations: [{ id: 100, is_productive: false }],
 		});
 		const program = programWithThemeCommand((c) => {
-			new ThemeApiInstallationCloneCommand().Bind(c);
+			new ThemeApiInstallationUnforkCommand().Bind(c);
 		});
 		await parseWithTail(program, [
 			"theme",
-			"clone",
+			"unfork",
 			"--title",
 			"New",
 			"--published",
@@ -217,7 +217,7 @@ describe("ThemeApiInstallationCloneCommand", () => {
 		expect(themeApiCmdMocks.error).toHaveBeenCalledWith(
 			"No productive theme found for this store",
 		);
-		expect(themeApiCmdMocks.cloneInstallation).not.toHaveBeenCalled();
+		expect(themeApiCmdMocks.unforkInstallation).not.toHaveBeenCalled();
 	});
 
 	it("accepts deprecated --installation-id and warns on stderr", async () => {
@@ -225,22 +225,22 @@ describe("ThemeApiInstallationCloneCommand", () => {
 			success: true,
 			config: { publicApiToken: "t", storeId: "1" },
 		};
-		themeApiCmdMocks.cloneInstallation.mockResolvedValue({ id: "12" });
+		themeApiCmdMocks.unforkInstallation.mockResolvedValue({ id: "12" });
 		const program = programWithThemeCommand((c) => {
-			new ThemeApiInstallationCloneCommand().Bind(c);
+			new ThemeApiInstallationUnforkCommand().Bind(c);
 		});
 		await parseWithTail(program, [
 			"theme",
-			"clone",
+			"unfork",
 			"--title",
-			"My copy",
+			"My draft",
 			"--installation-id",
 			"77",
 			"-y",
 		]);
-		expect(themeApiCmdMocks.cloneInstallation).toHaveBeenCalledWith(
+		expect(themeApiCmdMocks.unforkInstallation).toHaveBeenCalledWith(
 			"77",
-			"My copy",
+			"My draft",
 		);
 		const stderrText = stderrSpy.mock.calls.map((c) => String(c[0])).join("");
 		expect(stderrText).toContain("'--installation-id' is deprecated");

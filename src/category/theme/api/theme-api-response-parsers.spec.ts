@@ -236,6 +236,23 @@ describe("formatInstallationsAsTextTable", () => {
 		expect(text).not.toMatch(/(^|\s)42(\s|$)/);
 	});
 
+	it("renders the archived column with yes/no from the `archived` field", () => {
+		const text = formatInstallationsAsTextTable([
+			{
+				id: 6_020_304,
+				store_id: 5_012_345,
+				title: "Installation 1",
+				theme_name: "ipanema",
+				theme_type: "sectionable",
+				is_productive: false,
+				forked: false,
+				archived: true,
+			},
+		]);
+		expect(text).toContain("archived");
+		expect(text).toMatch(/yes\s*$/m);
+	});
+
 	it("shows N/A for a blank version and variant", () => {
 		const text = formatInstallationsAsTextTable([
 			{

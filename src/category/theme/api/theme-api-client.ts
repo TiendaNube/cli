@@ -363,13 +363,30 @@ export class ThemeApiClient {
 	}
 
 	/** POST …/clone — creates a new installation identical to the source (typically HTTP 201). */
-	async cloneInstallation(installationId: string): Promise<unknown> {
+	async cloneInstallation(
+		installationId: string,
+		title: string,
+	): Promise<unknown> {
 		const url = `${this.installationUrl(installationId)}/clone`;
 		this.log(`POST ${url}`);
 		return this.requestJson("Clone installation", url, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
-			body: "{}",
+			body: JSON.stringify({ title }),
+		});
+	}
+
+	/** POST …/unfork — reverse of fork: creates a new unforked draft keeping user files, source untouched (typically HTTP 201). */
+	async unforkInstallation(
+		installationId: string,
+		title: string,
+	): Promise<unknown> {
+		const url = `${this.installationUrl(installationId)}/unfork`;
+		this.log(`POST ${url}`);
+		return this.requestJson("Unfork installation", url, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ title }),
 		});
 	}
 

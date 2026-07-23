@@ -20,7 +20,7 @@ import { warnDeprecatedOption } from "../theme-api-deprecated-options";
 import { resolveExtraHeadersFromCli } from "../theme-api-extra-headers";
 import { extractThemeIdFromResponse } from "../theme-api-response-parsers";
 
-type CloneOptions = {
+type UnforkOptions = {
 	themeId?: string;
 	installationId?: string;
 	title?: string;
@@ -32,13 +32,13 @@ type CloneOptions = {
 	v: boolean;
 };
 
-export class ThemeApiInstallationCloneCommand {
+export class ThemeApiInstallationUnforkCommand {
 	private logger = new CliLogger();
 	private interaction = new CliInteraction();
 	private workspace = new ThemeWorkspaceConfigManager();
 
 	private async Execute(
-		options: CloneOptions,
+		options: UnforkOptions,
 		command: Command,
 	): Promise<void> {
 		const loaded = resolveApiCredentials({
@@ -81,20 +81,20 @@ export class ThemeApiInstallationCloneCommand {
 			provided: options.title,
 			command,
 			interaction: this.interaction,
-			suffix: "(copy)",
-			fallback: "Cloned draft",
+			suffix: "(unforked)",
+			fallback: "Unforked draft",
 		});
 
 		const confirmed = await confirmOrAbort(
 			command,
 			this.interaction,
-			`Cloning theme ${themeId} will create a new identical theme in the store. Do you want to continue?`,
+			`Unforking theme ${themeId} creates a new draft that keeps your templates and settings but drops the forked theme code, re-enabling automatic Nuvemshop/Tiendanube updates. The source theme is left untouched. Do you want to continue?`,
 		);
 		if (!confirmed) {
 			return;
 		}
 
-		const result = await client.cloneInstallation(themeId, title);
+		const result = await client.unforkInstallation(themeId, title);
 		if (options.json) {
 			process.stdout.write(`${JSON.stringify(result ?? {}, null, 2)}\n`);
 			return;
@@ -102,22 +102,24 @@ export class ThemeApiInstallationCloneCommand {
 		const newId = extractThemeIdFromResponse(result);
 		this.logger.Log(
 			newId
-				? `Theme ${themeId} cloned successfully; new theme ${newId} was created.`
-				: `Theme ${themeId} cloned successfully; a new theme was created.`,
+				? `Theme ${themeId} unforked successfully; new theme ${newId} was created.`
+				: `Theme ${themeId} unforked successfully; a new theme was created.`,
 		);
 	}
 
 	Bind(command: Command): void {
-		const cloneCmd = command
-			.command("clone")
-			.description("Clone a theme")
+		const unforkCmd = command
+			.command("unfork")
+			.description(
+				"Unfork a theme into a new draft, dropping forked code and re-enabling automatic updates",
+			)
 			.option(
 				"--theme-id <theme_id>",
 				"Theme ID (defaults to last pulled theme)",
 			)
 			.option(
 				"--title <title>",
-				"Title for the new theme (defaults to '<source> (copy)')",
+				"Title for the new theme (defaults to '<source> (unforked)')",
 			)
 			.addOption(
 				new Option(
@@ -125,15 +127,15 @@ export class ThemeApiInstallationCloneCommand {
 					"Deprecated: use --theme-id",
 				).hideHelp(),
 			);
-		addThemePublishedOption(cloneCmd);
-		addThemeApiTokenOption(cloneCmd);
-		addHiddenThemeApiUrlOption(cloneCmd);
-		addHiddenThemeApiHeaderOption(cloneCmd);
-		cloneCmd
+		addThemePublishedOption(unforkCmd);
+		addThemeApiTokenOption(unforkCmd);
+		addHiddenThemeApiUrlOption(unforkCmd);
+		addHiddenThemeApiHeaderOption(unforkCmd);
+		unforkCmd
 			.option("--json", "Use machine-readable JSON output", false)
 			.option("-v", "Enable verbose logging", false)
 			.action(
-				runAction((opts: CloneOptions, command: Command) =>
+				runAction((opts: UnforkOptions, command: Command) =>
 					this.Execute(opts, command),
 				),
 			);

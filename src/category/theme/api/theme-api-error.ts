@@ -12,6 +12,7 @@ export type ThemeApiErrorCode =
 	| "FILE_PATH_NOT_ALLOWED_WITHOUT_FORK"
 	| "FILE_LIMIT_EXCEEDED"
 	| "INSTALLATION_ALREADY_FORKED"
+	| "INSTALLATION_NOT_FORKED"
 	| "CANNOT_DELETE_PRODUCTIVE_INSTALLATION"
 	| "NO_PRODUCTIVE_INSTALLATION"
 	| "PRODUCTIVE_INSTALLATION_EXISTS"
@@ -22,6 +23,8 @@ const THEME_API_CODE_HINTS: Partial<Record<ThemeApiErrorCode, string>> = {
 	THEME_NOT_SECTIONABLE:
 		"Only sectionable themes support this operation. Check theme_type in theme list.",
 	INSTALLATION_ALREADY_FORKED: "This installation is already forked.",
+	INSTALLATION_NOT_FORKED:
+		"This installation is not forked, so there is nothing to unfork.",
 	FILE_PATH_NOT_ALLOWED_WITHOUT_FORK:
 		"This file can only be modified in forked installations. Run 'theme fork' to perform this action.",
 };

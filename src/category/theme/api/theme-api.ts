@@ -6,8 +6,10 @@ import { ThemeApiInstallationCurrentCommand } from "./commands/theme-api-install
 import { ThemeApiInstallationDeleteCommand } from "./commands/theme-api-installation-delete";
 import { ThemeApiInstallationForkCommand } from "./commands/theme-api-installation-fork";
 import { ThemeApiInstallationListCommand } from "./commands/theme-api-installation-list";
+import { ThemeApiInstallationPerformanceCommand } from "./commands/theme-api-installation-performance";
 import { ThemeApiInstallationPreviewCommand } from "./commands/theme-api-installation-preview";
 import { ThemeApiInstallationPublishCommand } from "./commands/theme-api-installation-publish";
+import { ThemeApiInstallationUnforkCommand } from "./commands/theme-api-installation-unfork";
 import { ThemeApiPullCommand } from "./commands/theme-api-pull";
 import { ThemeApiPushCommand } from "./commands/theme-api-push";
 import { ThemeApiWatchCommand } from "./commands/theme-api-watch";
@@ -22,7 +24,9 @@ export class ThemeApiCommands {
 		new ThemeApiInstallationCloneCommand().Bind(theme);
 		new ThemeApiInstallationPublishCommand().Bind(theme);
 		new ThemeApiInstallationForkCommand().Bind(theme);
+		new ThemeApiInstallationUnforkCommand().Bind(theme);
 		new ThemeApiInstallationPreviewCommand().Bind(theme);
+		new ThemeApiInstallationPerformanceCommand().Bind(theme);
 		new ThemeApiInstallationDeleteCommand().Bind(theme);
 		new ThemeApiInstallationCurrentCommand().Bind(theme);
 		new ThemeApiPullCommand().Bind(theme);
