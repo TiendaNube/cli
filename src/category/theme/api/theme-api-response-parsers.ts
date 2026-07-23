@@ -158,6 +158,7 @@ export type InstallationTableFields = {
 	base_theme_type: string;
 	is_productive: string;
 	forked: string;
+	archived: string;
 };
 
 export function mapInstallationToTableFields(
@@ -174,6 +175,7 @@ export function mapInstallationToTableFields(
 			base_theme_type: "",
 			is_productive: "",
 			forked: "",
+			archived: "",
 		};
 	}
 	const boolStr = (v: unknown): string => {
@@ -211,6 +213,7 @@ export function mapInstallationToTableFields(
 		base_theme_type: str(item.base_theme_type, item.theme_type),
 		is_productive: boolStr(item.is_productive),
 		forked: boolStr(item.forked),
+		archived: boolStr(item.archived),
 	};
 }
 
@@ -267,6 +270,11 @@ export function formatInstallationsAsTextTable(
 			"prod".length,
 		),
 		fork: Math.max(4, ...rows.map((r) => r.forked.length), "fork".length),
+		archived: Math.max(
+			8,
+			...rows.map((r) => r.archived.length),
+			"archived".length,
+		),
 	};
 
 	const sep = (char: string) =>
@@ -280,6 +288,7 @@ export function formatInstallationsAsTextTable(
 			char.repeat(cols.base_theme_type),
 			char.repeat(cols.prod),
 			char.repeat(cols.fork),
+			char.repeat(cols.archived),
 		].join("  ");
 
 	const line = (r: InstallationTableFields) =>
@@ -293,6 +302,7 @@ export function formatInstallationsAsTextTable(
 			padCell(r.base_theme_type, cols.base_theme_type),
 			padCell(r.is_productive, cols.prod),
 			padCell(r.forked, cols.fork),
+			padCell(r.archived, cols.archived),
 		].join("  ");
 
 	const header = [
@@ -305,6 +315,7 @@ export function formatInstallationsAsTextTable(
 		padCell("base_theme_type", cols.base_theme_type),
 		padCell("prod", cols.prod),
 		padCell("fork", cols.fork),
+		padCell("archived", cols.archived),
 	].join("  ");
 
 	const out: string[] = [

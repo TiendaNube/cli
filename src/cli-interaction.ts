@@ -2,7 +2,10 @@ import { confirm, isCancel, password, text } from "@clack/prompts";
 import { CancelError } from "./cli-action";
 import type { PromptValidator } from "./prompt-validation";
 
-type PromptOpts = { validate?: PromptValidator };
+type PromptOpts = {
+	validate?: PromptValidator;
+	initialValue?: string;
+};
 
 function toClackValidate(validate?: PromptValidator) {
 	return validate
@@ -21,6 +24,7 @@ export class CliInteraction {
 		const answer = await text({
 			message,
 			validate: toClackValidate(opts.validate),
+			initialValue: opts.initialValue,
 		});
 		if (isCancel(answer)) throw new CancelError();
 		return (answer ?? "").trim();

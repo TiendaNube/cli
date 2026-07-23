@@ -20,6 +20,7 @@ export const themeApiCmdMocks = {
 	publishInstallation: vi.fn(),
 	forkInstallation: vi.fn(),
 	cloneInstallation: vi.fn(),
+	unforkInstallation: vi.fn(),
 	getFiles: vi.fn(),
 	getFileHashes: vi.fn(),
 	upsertFile: vi.fn(),

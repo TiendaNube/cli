@@ -21,10 +21,12 @@ describe("Theme command tree", () => {
 				"ftp",
 				"installation",
 				"list",
+				"performance",
 				"preview",
 				"publish",
 				"pull",
 				"push",
+				"unfork",
 				"watch",
 			].sort(),
 		);

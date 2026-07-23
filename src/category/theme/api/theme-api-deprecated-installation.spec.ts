@@ -9,6 +9,7 @@ const DEPRECATED_VERBS = [
 	"clone",
 	"publish",
 	"fork",
+	"unfork",
 	"preview",
 	"delete",
 	"current",

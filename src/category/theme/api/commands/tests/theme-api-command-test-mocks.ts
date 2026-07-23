@@ -32,6 +32,7 @@ vi.mock("../../theme-api-client", async () => {
 			publishInstallation: themeApiCmdMocks.publishInstallation,
 			forkInstallation: themeApiCmdMocks.forkInstallation,
 			cloneInstallation: themeApiCmdMocks.cloneInstallation,
+			unforkInstallation: themeApiCmdMocks.unforkInstallation,
 			getFiles: themeApiCmdMocks.getFiles,
 			getFileHashes: themeApiCmdMocks.getFileHashes,
 			upsertFile: themeApiCmdMocks.upsertFile,
@@ -101,6 +102,7 @@ export function resetThemeApiCmdMocks(): void {
 	themeApiCmdMocks.publishInstallation.mockReset();
 	themeApiCmdMocks.forkInstallation.mockReset();
 	themeApiCmdMocks.cloneInstallation.mockReset();
+	themeApiCmdMocks.unforkInstallation.mockReset();
 	themeApiCmdMocks.getFiles.mockReset();
 	themeApiCmdMocks.getFileHashes.mockReset();
 	themeApiCmdMocks.upsertFile.mockReset();

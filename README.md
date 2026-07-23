@@ -163,6 +163,7 @@ Use these commands when syncing a **sections-based theme** via the **Public API*
 | `theme watch` | Watch files and push via API on each change |
 | `theme fork` | Enable fork mode (full theme paths on push) |
 | `theme preview` | Print a shareable preview URL for the theme |
+| `theme performance` | Run a Lighthouse performance report on the current theme |
 | `theme publish` | Make the theme live (productive) |
 
 
@@ -285,6 +286,20 @@ Prints one line — a shareable preview URL for the theme in use. Use it before 
 nuvemshop theme preview
 ```
 
+#### `theme performance`
+
+Runs a [Lighthouse](https://www.npmjs.com/package/lighthouse) performance audit against the storefront preview URL for the theme in use, for **both mobile and desktop**, and prints a separate report per device with the overall performance score plus the key metrics (First Contentful Paint, Speed Index, Largest Contentful Paint, Total Blocking Time, Cumulative Layout Shift, Time to Interactive). Uses the Chromium bundled with the CLI, so no extra setup is needed. The audit runs headless and can take a minute or two.
+
+**Default:** prints a human-friendly, color-coded report for each device.
+
+**Optional:** `--theme-id` (defaults to the id saved by `theme pull`), **`--published`** (resolve the store's published theme via API), **`--detailed`** (also list the recommended changes from the Lighthouse report — failing opportunities/diagnostics, worst impact first, each with concrete examples of the offending URLs/elements and their per-item savings), **`--json`** (machine-readable JSON output; results are keyed by device under `results.mobile` and `results.desktop`, with a `recommendations` array — including `examples` — per device when combined with `--detailed`).
+
+```bash
+nuvemshop theme performance
+nuvemshop theme performance --detailed
+nuvemshop theme performance --json
+```
+
 #### `theme publish`
 
 Publishing turns the theme **PRODUCTIVE** (live for customers; aligns with the `prod` column in `theme list`).
@@ -321,6 +336,9 @@ nuvemshop theme watch
 
 # 6. Share a preview link with your team
 nuvemshop theme preview
+
+# 6b. (Optional) check the theme's performance before shipping
+nuvemshop theme performance
 
 # 7. Ship it: make this theme the live one
 nuvemshop theme publish -y
