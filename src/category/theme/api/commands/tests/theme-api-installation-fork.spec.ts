@@ -48,7 +48,7 @@ describe("ThemeApiInstallationForkCommand", () => {
 		);
 	});
 
-	it("calls forkInstallation with -y", async () => {
+	it("calls forkInstallation with -y and labels the theme", async () => {
 		themeApiCmdMocks.tryLoadResult = {
 			success: true,
 			config: {
@@ -57,14 +57,19 @@ describe("ThemeApiInstallationForkCommand", () => {
 				themeId: "10",
 			},
 		};
+		themeApiCmdMocks.getInstallation.mockResolvedValue({
+			id: 10,
+			title: "My Theme",
+		});
 		themeApiCmdMocks.forkInstallation.mockResolvedValue({ fork: true });
 		const program = programWithThemeCommand((c) => {
 			new ThemeApiInstallationForkCommand().Bind(c);
 		});
 		await parseWithTail(program, ["theme", "fork", "-y"]);
+		expect(themeApiCmdMocks.getInstallation).toHaveBeenCalledWith("10");
 		expect(themeApiCmdMocks.forkInstallation).toHaveBeenCalledWith("10");
 		expect(themeApiCmdMocks.log).toHaveBeenCalledWith(
-			"Theme 10 forked successfully; fork is now true.",
+			"Theme 'My Theme' (10) forked successfully. Pull the theme again to refresh your local files.",
 		);
 	});
 

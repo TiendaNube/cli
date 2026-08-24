@@ -3,9 +3,13 @@ import { Option } from "commander";
 import { CliError, runAction } from "../../../../cli-action";
 import { CliInteraction } from "../../../../cli-interaction";
 import { CliLogger } from "../../../../cli-logger";
-import { confirmOrAbort } from "../../../../interactivity";
+import { assertConfirmable, confirmOrAbort } from "../../../../interactivity";
 import { resolveThemeIdOrFail } from "../../theme-id-resolver";
-import { resolveDerivedTitle } from "../../theme-title-resolver";
+import {
+	formatThemeLabel,
+	resolveDerivedTitle,
+	resolveThemeLabel,
+} from "../../theme-title-resolver";
 import { ThemeWorkspaceConfigManager } from "../../theme-workspace-config-manager";
 import {
 	addHiddenThemeApiHeaderOption,
@@ -75,9 +79,17 @@ export class ThemeApiInstallationCloneCommand {
 			getClient: () => client,
 		});
 
+		// Reject an unconfirmable run (non-interactive without --yes) before any
+		// network call; the labeled prompt still runs below for interactive runs.
+		assertConfirmable(command);
+
+		// Fetch first: a 404 here fails the command before we create anything, and
+		// the body feeds both the source label and the derived-title default.
+		const installation = await client.getInstallation(themeId);
+		const label = formatThemeLabel(installation, themeId);
+
 		const title = await resolveDerivedTitle({
-			client,
-			themeId,
+			installation,
 			provided: options.title,
 			command,
 			interaction: this.interaction,
@@ -88,7 +100,7 @@ export class ThemeApiInstallationCloneCommand {
 		const confirmed = await confirmOrAbort(
 			command,
 			this.interaction,
-			`Cloning theme ${themeId} will create a new identical theme in the store. Do you want to continue?`,
+			`Cloning theme ${label} will create a new identical theme in the store. Do you want to continue?`,
 		);
 		if (!confirmed) {
 			return;
@@ -100,10 +112,11 @@ export class ThemeApiInstallationCloneCommand {
 			return;
 		}
 		const newId = extractThemeIdFromResponse(result);
+		const newLabel = newId ? await resolveThemeLabel(client, newId) : null;
 		this.logger.Log(
-			newId
-				? `Theme ${themeId} cloned successfully; new theme ${newId} was created.`
-				: `Theme ${themeId} cloned successfully; a new theme was created.`,
+			newLabel
+				? `Theme ${label} cloned successfully; new theme ${newLabel} was created.`
+				: `Theme ${label} cloned successfully; a new theme was created.`,
 		);
 	}
 

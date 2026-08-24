@@ -145,7 +145,7 @@ nuvemshop theme ftp push
 
 Use these commands when syncing a **sections-based theme** via the **Public API**.
 
-**Flow:** `theme authorize` → `theme list` / **`theme create`** → `theme pull` / `theme push` / `theme watch` → **`theme preview`** for a storefront preview link → **`theme clone`** to duplicate a theme → **`theme fork`** to set **fork** (full theme paths on push) → **`theme publish`** when the theme should become **productive** (the live theme for the store). Use **`theme delete`** to remove a theme (destructive).
+**Flow:** `theme authorize` → `theme list` / **`theme create`** → `theme pull` / **`theme diff`** / `theme push` / `theme watch` → **`theme preview`** for a storefront preview link → **`theme clone`** to duplicate a theme → **`theme fork`** to set **fork** (full theme paths on push) → **`theme publish`** when the theme should become **productive** (the live theme for the store). Use **`theme delete`** to remove a theme (destructive).
 
 > [!NOTE]
 > The Fork workflow (Public API) is available only for sectionable themes (e.g., **Ipanema**).
@@ -159,9 +159,11 @@ Use these commands when syncing a **sections-based theme** via the **Public API*
 | `theme create` | Create a new theme (`--base-theme`, `--title`) |
 | `theme clone` | Clone a theme to a new one |
 | `theme delete` | Permanently delete a theme |
+| `theme diff` | Show what a push would change, without uploading |
 | `theme push` | Upload local files to a theme |
 | `theme watch` | Watch files and push via API on each change |
 | `theme fork` | Enable fork mode (full theme paths on push) |
+| `theme update` | Update a theme to a newer base-theme version, as a new draft |
 | `theme preview` | Print a shareable preview URL for the theme |
 | `theme performance` | Run a Lighthouse performance report on the current theme |
 | `theme publish` | Make the theme live (productive) |
@@ -244,6 +246,20 @@ nuvemshop theme clone
 nuvemshop theme delete
 ```
 
+#### `theme diff`
+
+Shows what a `theme push` would change — which files are **new**, which would be **updated**, and which would be **deleted** — without uploading anything. Files that push would skip (like `custom/`, or theme code on a theme that is not forked) are listed as skipped, not as changes. Reformatting a JSON file does not count as a change.
+
+**Default:** prints a summary grouped by change type, with one line per file.
+
+**Optional:** `--theme-id` (defaults to the id saved by `theme pull`), **`--published`** (resolve the store's published theme via API), **`--detailed`** (also show a git-style diff of what changed inside each file), **`--json`** (machine-readable JSON output; with `--detailed` each file also carries its diff as a `patch` string), **`-v`** (verbose HTTP).
+
+```bash
+nuvemshop theme diff
+nuvemshop theme diff --detailed
+nuvemshop theme diff --json --detailed
+```
+
 #### `theme push`
 
 Upload local files to a theme.
@@ -274,6 +290,18 @@ Sets **fork** to true so pushes may include the full theme tree (see `theme pull
 
 ```bash
 nuvemshop theme fork
+```
+
+#### `theme update`
+
+Updates a theme to a newer version of its base theme by creating a **new draft** — the source theme is left untouched. The CLI asks the API which versions the theme can move to (they differ per theme: an exact version for a forked theme, a major for a non-forked one), then dry-runs the update to report which local edits would be discarded before doing anything.
+
+**Optional:** `--theme-id` (defaults to the id saved by `theme pull`), **`--to <version>`** (target version; a forked theme takes an exact version like `2.3.1`, a non-forked one a major like `2`; omit to pick from the available versions), **`--title <title>`** (title for the new draft; defaults to `'<source> (<version>)'`), **`--dry-run`** (only report which local edits the update would discard, without creating anything), **`-y`** (skip the update confirmation), **`--json`** (machine-readable JSON output), **`-v`** (verbose HTTP).
+
+```bash
+nuvemshop theme update
+nuvemshop theme update --to 2 --dry-run
+nuvemshop theme update --to 2.3.1 -y
 ```
 
 #### `theme preview`
@@ -333,6 +361,9 @@ nuvemshop theme fork -y
 
 # 5. Iterate: edit files in your editor while watch syncs and reloads the storefront
 nuvemshop theme watch
+
+# 5b. (Optional) review what a push would change before uploading
+nuvemshop theme diff --detailed
 
 # 6. Share a preview link with your team
 nuvemshop theme preview

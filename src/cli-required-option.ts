@@ -14,6 +14,7 @@ type RequiredOptionSpec = {
 	long: string;
 	attributeName: string;
 	mask: boolean;
+	promptLabel?: string;
 	validate?: PromptValidator;
 	normalize?: PromptNormalizer;
 };
@@ -78,7 +79,9 @@ async function promptMissingRequiredOptions(
 			throw new CliError(`required option '${spec.flags}' not specified`);
 		}
 
-		const label = `Enter ${spec.long.replace(/^--/, "")}:`;
+		// Derived from the flag name unless the caller named it: a short flag like
+		// `--to` derives to "Enter to:", which tells the user nothing.
+		const label = spec.promptLabel ?? `Enter ${spec.long.replace(/^--/, "")}:`;
 		cmd.setOptionValue(
 			spec.attributeName,
 			await promptValue(interaction, label, spec),
@@ -99,6 +102,8 @@ function ensureSpecsForCommand(cmd: Command): RequiredOptionSpec[] {
 
 export type AddRequiredOptionOpts = {
 	mask?: boolean;
+	/** Prompt text when the value is missing. Defaults to "Enter <long flag>:". */
+	promptLabel?: string;
 	validate?: PromptValidator;
 	normalize?: PromptNormalizer;
 };
@@ -143,6 +148,7 @@ export function addRequiredOption(
 		long: option.long ?? "",
 		attributeName: option.attributeName(),
 		mask: opts.mask === true,
+		promptLabel: opts.promptLabel,
 		validate: opts.validate,
 		normalize: opts.normalize,
 	});

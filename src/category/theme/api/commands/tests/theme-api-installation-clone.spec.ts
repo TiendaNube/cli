@@ -115,6 +115,24 @@ describe("ThemeApiInstallationCloneCommand", () => {
 		);
 	});
 
+	it("labels both themes as '<title> (<id>)' when they have titles", async () => {
+		themeApiCmdMocks.tryLoadResult = {
+			success: true,
+			config: { publicApiToken: "t", storeId: "1", themeId: "10" },
+		};
+		themeApiCmdMocks.getInstallation.mockImplementation((id: string) =>
+			Promise.resolve({ id, title: id === "10" ? "Source" : "Source (copy)" }),
+		);
+		themeApiCmdMocks.cloneInstallation.mockResolvedValue({ id: "11" });
+		const program = programWithThemeCommand((c) => {
+			new ThemeApiInstallationCloneCommand().Bind(c);
+		});
+		await parseWithTail(program, ["theme", "clone", "--title", "x", "-y"]);
+		expect(themeApiCmdMocks.log).toHaveBeenCalledWith(
+			"Theme 'Source' (10) cloned successfully; new theme 'Source (copy)' (11) was created.",
+		);
+	});
+
 	it("writes JSON when --json", async () => {
 		themeApiCmdMocks.tryLoadResult = {
 			success: true,

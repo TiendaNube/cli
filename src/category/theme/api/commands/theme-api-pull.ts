@@ -14,12 +14,8 @@ import {
 	addThemeApiTokenOption,
 	addThemePublishedOption,
 } from "../theme-api-cli-options";
-import { ThemeApiClient, mapPool } from "../theme-api-client";
-import {
-	THEME_API_MAX_PARALLEL,
-	THEME_API_PULL_PAGE_SIZE,
-	resolveThemeApiBaseUrl,
-} from "../theme-api-constants";
+import { ThemeApiClient } from "../theme-api-client";
+import { resolveThemeApiBaseUrl } from "../theme-api-constants";
 import { resolveApiCredentials } from "../theme-api-credentials";
 import { warnDeprecatedOption } from "../theme-api-deprecated-options";
 import { resolveExtraHeadersFromCli } from "../theme-api-extra-headers";
@@ -27,10 +23,7 @@ import {
 	decodeRemoteFileContent,
 	isPathInsideThemeRoot,
 } from "../theme-api-file-format";
-import {
-	type RemoteThemeFile,
-	parseGetFilesResponse,
-} from "../theme-api-response-parsers";
+import { fetchAllRemoteFiles } from "../theme-api-remote-content";
 import {
 	listThemeEntries,
 	removeThemeEntries,
@@ -105,48 +98,10 @@ export class ThemeApiPullCommand {
 		}
 
 		this.logger.Log("Downloading theme files from API…");
-		const limit = THEME_API_PULL_PAGE_SIZE;
-		const fetchPage = async (
-			off: number,
-		): Promise<ReturnType<typeof parseGetFilesResponse>> => {
-			const raw = await client.getFiles(themeId, { offset: off, limit });
-			return parseGetFilesResponse(raw);
-		};
-
-		const firstPage = await fetchPage(0);
-		const installation: unknown = firstPage.installation;
-		const total = firstPage.total;
-		const allFiles: RemoteThemeFile[] = [...firstPage.files];
-
-		if (total !== null) {
-			// Parallel path: `total` known, fan out the remaining offsets within
-			// the shared API concurrency budget.
-			const remainingOffsets: number[] = [];
-			for (let off = limit; off < total; off += limit) {
-				remainingOffsets.push(off);
-			}
-			if (remainingOffsets.length > 0) {
-				const pages = await mapPool(
-					remainingOffsets,
-					THEME_API_MAX_PARALLEL,
-					(off) => fetchPage(off),
-				);
-				for (const page of pages) {
-					allFiles.push(...page.files);
-				}
-			}
-		} else if (firstPage.files.length >= limit) {
-			// Sequential fallback: no `total`, iterate until a short page.
-			let off = limit;
-			for (;;) {
-				const page = await fetchPage(off);
-				allFiles.push(...page.files);
-				if (page.files.length < limit) {
-					break;
-				}
-				off += limit;
-			}
-		}
+		const { installation, files: allFiles } = await fetchAllRemoteFiles(
+			client,
+			themeId,
+		);
 
 		const cwd = path.resolve(".");
 		for (const file of allFiles) {

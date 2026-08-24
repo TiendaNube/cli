@@ -3,6 +3,7 @@ import { Option } from "commander";
 import { CliError, runAction } from "../../../../cli-action";
 import { CliLogger } from "../../../../cli-logger";
 import { addRequiredOption } from "../../../../cli-required-option";
+import { resolveThemeLabel } from "../../theme-title-resolver";
 import { ThemeWorkspaceConfigManager } from "../../theme-workspace-config-manager";
 import {
 	addHiddenThemeApiHeaderOption,
@@ -84,9 +85,10 @@ export class ThemeApiInstallationCreateCommand {
 			return;
 		}
 		const newId = extractThemeIdFromResponse(result);
+		const newLabel = newId ? await resolveThemeLabel(client, newId) : null;
 		this.logger.Log(
-			newId
-				? `Theme ${newId} created successfully.`
+			newLabel
+				? `Theme ${newLabel} created successfully.`
 				: "Theme created successfully.",
 		);
 	}

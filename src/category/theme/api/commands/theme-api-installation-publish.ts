@@ -3,8 +3,9 @@ import { Option } from "commander";
 import { CliError, runAction } from "../../../../cli-action";
 import { CliInteraction } from "../../../../cli-interaction";
 import { CliLogger } from "../../../../cli-logger";
-import { confirmOrAbort } from "../../../../interactivity";
+import { assertConfirmable, confirmOrAbort } from "../../../../interactivity";
 import { resolveThemeIdOrFail } from "../../theme-id-resolver";
+import { formatThemeLabel } from "../../theme-title-resolver";
 import { ThemeWorkspaceConfigManager } from "../../theme-workspace-config-manager";
 import {
 	addHiddenThemeApiHeaderOption,
@@ -72,10 +73,20 @@ export class ThemeApiInstallationPublishCommand {
 			supportsPublished: false,
 		});
 
+		// Reject an unconfirmable run (non-interactive without --yes) before any
+		// network call; the labeled prompt still runs below for interactive runs.
+		assertConfirmable(command);
+
+		// Fetch first: validates the theme exists before the confirm, and names it.
+		const label = formatThemeLabel(
+			await client.getInstallation(themeId),
+			themeId,
+		);
+
 		const confirmed = await confirmOrAbort(
 			command,
 			this.interaction,
-			`Publishing theme ${themeId} will make it productive (the live theme for the store). Do you want to continue?`,
+			`Publishing theme ${label} will make it productive (the live theme for the store). Do you want to continue?`,
 		);
 		if (!confirmed) {
 			return;
@@ -87,7 +98,7 @@ export class ThemeApiInstallationPublishCommand {
 			return;
 		}
 		this.logger.Log(
-			`Theme ${themeId} published successfully; it is now productive.`,
+			`Theme ${label} published successfully; it is now productive.`,
 		);
 	}
 

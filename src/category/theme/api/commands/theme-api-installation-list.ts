@@ -67,7 +67,12 @@ export class ThemeApiInstallationListCommand {
 			return;
 		}
 
-		this.logger.Log(formatInstallationsAsTextTable(rows).trimEnd());
+		this.logger.Log(`Store id: ${config.storeId}\n`);
+		this.logger.Log(
+			formatInstallationsAsTextTable(rows, {
+				currentId: config.themeId,
+			}).trimEnd(),
+		);
 	}
 
 	Bind(command: Command): void {

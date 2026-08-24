@@ -3,10 +3,158 @@ import {
 	extractInstallationsArray,
 	extractThemeIdFromResponse,
 	formatInstallationsAsTextTable,
+	parseGetFileResponse,
 	parseGetFilesResponse,
 	parseInstallationsList,
+	parseUpdateTargets,
+	parseUpdateTestReport,
 	stringifyListInstallationsResponse,
 } from "./theme-api-response-parsers";
+
+describe("parseUpdateTargets", () => {
+	it("parses the forked shape, preserving the API's order", () => {
+		expect(
+			parseUpdateTargets({
+				forked: true,
+				current_version: "1.0.0",
+				targets: ["2.1.1", "2.1.0", "1.1.0"],
+			}),
+		).toEqual({
+			forked: true,
+			currentVersion: "1.0.0",
+			// Not re-sorted: sorting version strings here is how 10.0.0 lands under 9.0.0.
+			targets: ["2.1.1", "2.1.0", "1.1.0"],
+		});
+	});
+
+	it("parses the non-forked major shape", () => {
+		expect(
+			parseUpdateTargets({
+				forked: false,
+				current_version: "1",
+				targets: ["3", "2"],
+			}),
+		).toEqual({ forked: false, currentVersion: "1", targets: ["3", "2"] });
+	});
+
+	it("treats an empty list as up to date, not as an error", () => {
+		expect(
+			parseUpdateTargets({
+				forked: true,
+				current_version: "2.0.0",
+				targets: [],
+			}).targets,
+		).toEqual([]);
+	});
+
+	it("tolerates a missing current_version and a missing list", () => {
+		expect(parseUpdateTargets({ forked: true })).toEqual({
+			forked: true,
+			currentVersion: null,
+			targets: [],
+		});
+	});
+
+	it("drops non-string entries rather than passing them on as targets", () => {
+		expect(
+			parseUpdateTargets({ targets: ["2.0.0", 3, null, "1.1.0"] }).targets,
+		).toEqual(["2.0.0", "1.1.0"]);
+	});
+
+	it("throws when the body is not an object", () => {
+		expect(() => parseUpdateTargets("nope")).toThrow(
+			"Invalid API response: expected JSON object",
+		);
+	});
+});
+
+describe("parseUpdateTestReport", () => {
+	it("parses versions and conflicting files", () => {
+		expect(
+			parseUpdateTestReport({
+				baseline_version: "1.0.0",
+				target_version: "2.0.0",
+				conflicts: 2,
+				conflicting_files: ["sections/hero.tpl", "snippets/nav.tpl"],
+			}),
+		).toEqual({
+			baselineVersion: "1.0.0",
+			targetVersion: "2.0.0",
+			conflictingFiles: ["sections/hero.tpl", "snippets/nav.tpl"],
+		});
+	});
+
+	it("treats a missing conflicting_files as no conflicts", () => {
+		expect(
+			parseUpdateTestReport({
+				baseline_version: "1.0.0",
+				target_version: "2.0.0",
+				conflicts: 0,
+			}).conflictingFiles,
+		).toEqual([]);
+	});
+
+	it("refuses a conflicts count that disagrees with the file list", () => {
+		// Under-reporting here would put "No local edits will be lost" on the prompt
+		// that authorizes overwriting them.
+		expect(() =>
+			parseUpdateTestReport({
+				conflicts: 7,
+				conflicting_files: ["sections/hero.tpl"],
+			}),
+		).toThrow("`conflicts` is 7 but 1 usable file path(s) were returned");
+	});
+
+	it("refuses a count with no list at all", () => {
+		expect(() => parseUpdateTestReport({ conflicts: 3 })).toThrow(
+			"`conflicts` is 3 but 0 usable file path(s) were returned",
+		);
+	});
+
+	it("refuses a list whose entries are not all usable paths", () => {
+		// Dropping the unusable ones would report fewer files than the API counted,
+		// which is the same silent under-report by another route.
+		expect(() =>
+			parseUpdateTestReport({
+				conflicts: 4,
+				conflicting_files: ["a.tpl", 5, null, "b.tpl"],
+			}),
+		).toThrow("`conflicts` is 4 but 2 usable file path(s) were returned");
+	});
+
+	it("nulls out absent versions when the counts agree", () => {
+		expect(
+			parseUpdateTestReport({
+				conflicts: 2,
+				conflicting_files: ["a.tpl", "b.tpl"],
+			}),
+		).toEqual({
+			baselineVersion: null,
+			targetVersion: null,
+			conflictingFiles: ["a.tpl", "b.tpl"],
+		});
+	});
+
+	it("refuses a missing or non-integer conflicts count", () => {
+		for (const conflicts of [undefined, null, "2", 1.5, Number.NaN]) {
+			expect(() =>
+				parseUpdateTestReport({ conflicts, conflicting_files: [] }),
+			).toThrow("`conflicts` must be an integer count");
+		}
+	});
+
+	it("refuses a negative conflicts count", () => {
+		expect(() =>
+			parseUpdateTestReport({ conflicts: -1, conflicting_files: [] }),
+		).toThrow("`conflicts` cannot be negative (got -1)");
+	});
+
+	it("throws when the body is not an object", () => {
+		expect(() => parseUpdateTestReport("nope")).toThrow(
+			"Invalid API response: expected JSON object",
+		);
+	});
+});
 
 describe("parseGetFilesResponse", () => {
 	it("parses installation and files", () => {
@@ -39,6 +187,39 @@ describe("parseGetFilesResponse", () => {
 			parseGetFilesResponse({ installation: {}, files: [], total: "231" })
 				.total,
 		).toBeNull();
+	});
+});
+
+describe("parseGetFileResponse", () => {
+	it("parses the file object itself", () => {
+		expect(
+			parseGetFileResponse({ path: "a.tpl", format: "text", content: "x" }),
+		).toEqual({ path: "a.tpl", format: "text", content: "x" });
+	});
+
+	it("parses a `file` wrapper", () => {
+		expect(
+			parseGetFileResponse({
+				file: { path: "a.json", format: "json", content: { k: 1 } },
+			}),
+		).toEqual({ path: "a.json", format: "json", content: { k: 1 } });
+	});
+
+	it("parses a one-item `files` list", () => {
+		expect(
+			parseGetFileResponse({
+				files: [{ path: "a.tpl", format: "text", content: "x" }],
+			}),
+		).toEqual({ path: "a.tpl", format: "text", content: "x" });
+	});
+
+	it("throws when path or format is missing", () => {
+		expect(() => parseGetFileResponse({ path: "a.tpl" })).toThrow(
+			'Invalid API response: expected "path" and "format"',
+		);
+		expect(() => parseGetFileResponse("nope")).toThrow(
+			"Invalid API response: expected JSON object",
+		);
 	});
 });
 
@@ -197,7 +378,9 @@ describe("formatInstallationsAsTextTable", () => {
 			},
 		]);
 		expect(text).toContain("6020304");
-		expect(text).toContain("5012345");
+		// store_id is no longer a column (the caller prints it above the table)
+		expect(text).not.toContain("5012345");
+		expect(text).not.toContain("store_id");
 		expect(text).toContain("Installation 1");
 		expect(text).toContain("base_theme");
 		expect(text).toContain("base_theme_type");
@@ -251,6 +434,28 @@ describe("formatInstallationsAsTextTable", () => {
 		]);
 		expect(text).toContain("archived");
 		expect(text).toMatch(/yes\s*$/m);
+	});
+
+	it("marks the current installation with > and leaves others blank", () => {
+		const text = formatInstallationsAsTextTable(
+			[
+				{ id: 111, title: "one", theme_name: "ipanema" },
+				{ id: 222, title: "two", theme_name: "ipanema" },
+			],
+			{ currentId: "222" },
+		);
+		const rows = text.split("\n");
+		const currentRow = rows.find((r) => r.includes("222"));
+		const otherRow = rows.find((r) => r.includes("111"));
+		expect(currentRow?.trimStart().startsWith(">")).toBe(true);
+		expect(otherRow).not.toContain(">");
+	});
+
+	it("draws no marker when there is no current installation", () => {
+		const text = formatInstallationsAsTextTable([
+			{ id: 111, title: "one", theme_name: "ipanema" },
+		]);
+		expect(text).not.toContain(">");
 	});
 
 	it("shows N/A for a blank version and variant", () => {
