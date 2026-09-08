@@ -5,6 +5,7 @@ import { NubesdkCommands } from "./category/nubesdk/nubesdk";
 import { ThemeCommands } from "./category/theme/theme-commands";
 import { getCliExecutableName } from "./cli-executable-name";
 import { CliLogger } from "./cli-logger";
+import { TelemetryCommands } from "./telemetry/commands/telemetry-command";
 
 const program = new Command();
 
@@ -21,6 +22,7 @@ program
 // NubeSDK commands are hidden until NubeSDK support on Core Storefronts is publicly announced
 // new NubesdkCommands().Bind(program);
 new ThemeCommands().Bind(program);
+new TelemetryCommands().Bind(program);
 
 updateNotifier({
 	pkg: { name: packageJson.name, version: packageJson.version },

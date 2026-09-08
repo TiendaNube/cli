@@ -2,7 +2,8 @@ import type { Command } from "commander";
 import { CliError } from "./cli-action";
 import type { CliInteraction } from "./cli-interaction";
 
-function isTruthyEnv(value: string | undefined): boolean {
+/** Shared "is this env var set to something meaningful" rule (CI, DO_NOT_TRACK, …). */
+export function isTruthyEnv(value: string | undefined): boolean {
 	return (
 		value !== undefined &&
 		value !== "" &&

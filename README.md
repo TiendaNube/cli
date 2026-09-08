@@ -17,6 +17,7 @@ Both `nuvemshop` and `tiendanube` run the same CLI. Examples below use `nuvemsho
   - [Theme, Fork (Public API)](#theme-fork-public-api)
   - [End-to-end example: Fork workflow](#end-to-end-example-fork-workflow)
 - [OS compatibility](#os-compatibility)
+- [Anonymous usage data](#anonymous-usage-data)
 - [Official documentation](#official-documentation)
 - [Uninstallation](#uninstallation)
 - [Legal](#legal)
@@ -380,6 +381,81 @@ For CI or scripts, swap step 1 for `nuvemshop theme authorize --token "<token>"`
 ## OS compatibility
 
 The CLI is **Node.js-based** and is intended to work on **Windows, macOS, and Linux** the same way you run any global npm binary.
+
+## Anonymous usage data
+
+**The CLI collects anonymous usage data by default.** It starts reporting on the first command and keeps doing so until you opt out.
+
+**Opting out is one command:**
+
+```bash
+nuvemshop telemetry disable
+```
+
+The goal of collecting it is narrow: know which commands people actually use and which ones fail, so we fix the right things.
+
+**What is collected**
+
+- the command you ran, such as `theme push`
+- whether it succeeded, failed, or was cancelled, and how long it took
+- for failures: the error class and its stable code, for example `ThemeApiError` / `THEME_NOT_SECTIONABLE`
+- the CLI, Node.js, and operating system versions, the CPU architecture, and whether the run was in CI
+- a random id, generated on your machine, that identifies the installation and nothing else
+
+**What is never collected**
+
+- store ids, account data, or anything identifying you or your shop
+- file names, file contents, or directory listings
+- credentials, tokens, or FTP configuration
+- command arguments, flag values, or error messages
+
+Error messages are excluded deliberately: they can contain file paths and ids, so only the error class and code are reported.
+
+**Managing it**
+
+```bash
+nuvemshop telemetry status     # show the current setting, id, and config file location
+nuvemshop telemetry disable    # stop sending anything
+nuvemshop telemetry enable     # start again
+```
+
+`tiendanube telemetry ...` does the same thing — both bins share one setting. `disable` deletes the random id, so `disable` followed by `enable` gives you a brand new one.
+
+Environment variables override the stored setting for whatever environment they are set in:
+
+```bash
+export NUVEMSHOP_CLI_TELEMETRY_ENABLED=0     # force off, including in CI
+export NUVEMSHOP_CLI_TELEMETRY_ENABLED=1     # force on, even where something else turned it off
+export DO_NOT_TRACK=1                        # respected by many developer tools
+```
+
+`TIENDANUBE_` works as a prefix everywhere `NUVEMSHOP_` does, and `..._CLI_TELEMETRY_DISABLED=1` is accepted as an alias for `..._ENABLED=0`. Variables never change the stored setting — unset them and your original choice is back.
+
+### Continuous integration
+
+CI runs report like any other run, and by default they are treated as one-off executions rather than as people: the random id is generated per run and never written to disk, and every event is tagged so it counts as activity and never as a returning user.
+
+To turn it off for a pipeline, set this in that environment:
+
+```bash
+NUVEMSHOP_CLI_TELEMETRY_ENABLED=0
+```
+
+**One exception**, for self-hosted runners: if the machine already has an id stored — because someone ran the CLI on it by hand — that id is reused instead of a per-run one, and its runs are tagged as a returning user like any other run from that machine. It is still marked as CI, so it can be filtered out separately. A stored opt-out is respected there too, and takes precedence over this per-run default — though `..._CLI_TELEMETRY_ENABLED=1` still overrides it, as everywhere else.
+
+### Non-interactive runs
+
+Nothing is ever printed about telemetry and nothing is ever asked, so scripted, piped, and `--yes` runs behave exactly like interactive ones: never blocked, and never with stdout corrupted for `| jq`.
+
+The setting lives in one file per user, shared by the `tiendanube` and `nuvemshop` commands:
+
+| OS | Location |
+| --- | --- |
+| Linux | `$XDG_CONFIG_HOME/tiendanube-cli/config.json`, or `~/.config/tiendanube-cli/config.json` |
+| macOS | `~/.config/tiendanube-cli/config.json` |
+| Windows | `%APPDATA%\tiendanube-cli\config.json` |
+
+Deleting that file clears your choice, which means collection returns to being on, with a new random id.
 
 ## Official documentation
 
