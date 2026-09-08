@@ -65,7 +65,7 @@ describe("ThemeApiInstallationPublishCommand", () => {
 		expect(themeApiCmdMocks.publishInstallation).not.toHaveBeenCalled();
 	});
 
-	it("calls publishInstallation with -y", async () => {
+	it("calls publishInstallation with -y and labels the theme", async () => {
 		themeApiCmdMocks.tryLoadResult = {
 			success: true,
 			config: {
@@ -74,14 +74,19 @@ describe("ThemeApiInstallationPublishCommand", () => {
 				themeId: "10",
 			},
 		};
+		themeApiCmdMocks.getInstallation.mockResolvedValue({
+			id: 10,
+			title: "My Theme",
+		});
 		themeApiCmdMocks.publishInstallation.mockResolvedValue({});
 		const program = programWithThemeCommand((c) => {
 			new ThemeApiInstallationPublishCommand().Bind(c);
 		});
 		await parseWithTail(program, ["theme", "publish", "-y"]);
+		expect(themeApiCmdMocks.getInstallation).toHaveBeenCalledWith("10");
 		expect(themeApiCmdMocks.publishInstallation).toHaveBeenCalledWith("10");
 		expect(themeApiCmdMocks.log).toHaveBeenCalledWith(
-			"Theme 10 published successfully; it is now productive.",
+			"Theme 'My Theme' (10) published successfully; it is now productive.",
 		);
 	});
 

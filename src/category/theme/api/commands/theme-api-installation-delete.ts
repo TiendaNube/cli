@@ -5,6 +5,7 @@ import { CliInteraction } from "../../../../cli-interaction";
 import { CliLogger } from "../../../../cli-logger";
 import { confirmOrAbort } from "../../../../interactivity";
 import { resolveThemeIdOrFail } from "../../theme-id-resolver";
+import { formatThemeLabel } from "../../theme-title-resolver";
 import { ThemeWorkspaceConfigManager } from "../../theme-workspace-config-manager";
 import {
 	addHiddenThemeApiHeaderOption,
@@ -72,10 +73,16 @@ export class ThemeApiInstallationDeleteCommand {
 			supportsPublished: false,
 		});
 
+		// Fetch first: a 404 here fails the command before we ask the user to
+		// confirm an irreversible delete, and gives us the title for the label.
+		const label = formatThemeLabel(
+			await client.getInstallation(themeId),
+			themeId,
+		);
 		const confirmed = await confirmOrAbort(
 			command,
 			this.interaction,
-			`This will permanently delete theme ${themeId} from the store. This cannot be undone. Do you want to continue?`,
+			`This will permanently delete theme ${label} from the store. This cannot be undone. Do you want to continue?`,
 		);
 		if (!confirmed) {
 			return;
@@ -90,7 +97,7 @@ export class ThemeApiInstallationDeleteCommand {
 			process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
 			return;
 		}
-		this.logger.Log(`Theme ${themeId} deleted successfully.`);
+		this.logger.Log(`Theme ${label} deleted successfully.`);
 	}
 
 	Bind(command: Command): void {

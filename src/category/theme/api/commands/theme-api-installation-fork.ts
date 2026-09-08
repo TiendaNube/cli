@@ -3,8 +3,9 @@ import { Option } from "commander";
 import { CliError, runAction } from "../../../../cli-action";
 import { CliInteraction } from "../../../../cli-interaction";
 import { CliLogger } from "../../../../cli-logger";
-import { confirmOrAbort } from "../../../../interactivity";
+import { assertConfirmable, confirmOrAbort } from "../../../../interactivity";
 import { resolveThemeIdOrFail } from "../../theme-id-resolver";
+import { formatThemeLabel } from "../../theme-title-resolver";
 import { ThemeWorkspaceConfigManager } from "../../theme-workspace-config-manager";
 import {
 	addHiddenThemeApiHeaderOption,
@@ -69,10 +70,19 @@ export class ThemeApiInstallationForkCommand {
 			getClient: () => client,
 		});
 
+		// Reject an unconfirmable run (non-interactive without --yes) before any
+		// network call; the labeled prompt still runs below for interactive runs.
+		assertConfirmable(command);
+
+		// Fetch first: validates the theme exists before the confirm, and names it.
+		const label = formatThemeLabel(
+			await client.getInstallation(themeId),
+			themeId,
+		);
 		const confirmed = await confirmOrAbort(
 			command,
 			this.interaction,
-			`Forking theme ${themeId} disables automatic Nuvemshop/Tiendanube updates. You'll need to apply future improvements manually. Do you want to continue?`,
+			`Forking theme ${label} disables automatic Nuvemshop/Tiendanube updates. You'll need to apply future improvements manually. Do you want to continue?`,
 		);
 		if (!confirmed) {
 			return;
@@ -83,7 +93,9 @@ export class ThemeApiInstallationForkCommand {
 			process.stdout.write(`${JSON.stringify(result ?? {}, null, 2)}\n`);
 			return;
 		}
-		this.logger.Log(`Theme ${themeId} forked successfully; fork is now true.`);
+		this.logger.Log(
+			`Theme ${label} forked successfully. Pull the theme again to refresh your local files.`,
+		);
 	}
 
 	Bind(command: Command): void {

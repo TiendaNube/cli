@@ -22,6 +22,22 @@ export type ThemeApiClientOptions = {
 	extraHeaders?: Record<string, string>;
 };
 
+type RequestOptions = {
+	/**
+	 * Whether the request may be re-sent on a timeout or a retryable status
+	 * (429/503). Defaults to true, which is right for reads and for writes the API
+	 * treats as idempotent (a PUT to a path, a DELETE of a path).
+	 *
+	 * Pass false when repeating the call could produce a SECOND side effect. The
+	 * dangerous case is the timeout retry: a request that reached the API and was
+	 * processed, whose response was lost on the way back, is indistinguishable
+	 * here from one that never arrived — so retrying an endpoint that creates a
+	 * resource can create two. There is no idempotency key on these endpoints to
+	 * make the retry safe, so the retry is what has to go.
+	 */
+	retry?: boolean;
+};
+
 function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -180,9 +196,14 @@ export class ThemeApiClient {
 		}
 	}
 
+	/**
+	 * @param retry Whether a lost or retryable response may be re-sent. Pass false
+	 * for a request that is not safe to repeat — see {@link RequestOptions.retry}.
+	 */
 	private async request(
 		url: string,
 		init: RequestInit,
+		{ retry = true }: RequestOptions = {},
 	): Promise<{
 		ok: boolean;
 		status: number;
@@ -192,6 +213,7 @@ export class ThemeApiClient {
 	}> {
 		let attempt = 0;
 		let lastText = "";
+		const maxAttempts = retry ? THEME_API_MAX_ATTEMPTS_FOR_REQUESTS : 1;
 
 		for (;;) {
 			const { signal: userSignal, ...initWithoutSignal } = init;
@@ -222,8 +244,7 @@ export class ThemeApiClient {
 				});
 			} catch (err) {
 				const userAborted = Boolean(userSignal?.aborted);
-				const hasAttemptsLeft =
-					attempt < THEME_API_MAX_ATTEMPTS_FOR_REQUESTS - 1;
+				const hasAttemptsLeft = attempt < maxAttempts - 1;
 				if (!userAborted && hasAttemptsLeft && isThemeApiFetchAbortError(err)) {
 					const waitMs = themeApiRequestRetryDelayMs(
 						THEME_API_HTTP_STATUS_SERVICE_UNAVAILABLE,
@@ -255,7 +276,7 @@ export class ThemeApiClient {
 				}
 			}
 
-			const hasAttemptsLeft = attempt < THEME_API_MAX_ATTEMPTS_FOR_REQUESTS - 1;
+			const hasAttemptsLeft = attempt < maxAttempts - 1;
 			if (hasAttemptsLeft && isRetryableThemeApiHttpStatus(res.status)) {
 				const waitMs = themeApiRequestRetryDelayMs(
 					res.status,
@@ -285,10 +306,12 @@ export class ThemeApiClient {
 		operation: string,
 		url: string,
 		init: RequestInit,
+		options: RequestOptions = {},
 	): Promise<T> {
 		const { ok, status, body, text, contentType } = await this.request(
 			url,
 			init,
+			options,
 		);
 		if (!ok) {
 			const { code, message } = extractThemeApiCodeAndMessage(
@@ -390,6 +413,72 @@ export class ThemeApiClient {
 		});
 	}
 
+	/**
+	 * POST …/update — brings the theme forward to `themeVersion` (a major pin like
+	 * "2" or an exact "2.3.1") as a NEW draft; the source is left untouched
+	 * (typically HTTP 201). For a forked theme the platform overwrites exactly the
+	 * files its authors changed between the theme's current version and the target,
+	 * so an edit to one of those files is replaced — `testUpdateInstallation` counts
+	 * them first.
+	 *
+	 * Never retried. Every call creates a new theme, so a retry after a lost
+	 * response can leave the store with two of them — and the second one costs the
+	 * merchant an installation slot against their plan cap. A failure here is
+	 * reported instead: re-running the command is the user's call, and they can see
+	 * whether the first attempt landed. `theme list` says which.
+	 */
+	async updateInstallation(
+		installationId: string,
+		themeVersion: string,
+		title?: string,
+	): Promise<unknown> {
+		const url = `${this.installationUrl(installationId)}/update`;
+		this.log(`POST ${url}`);
+		return this.requestJson(
+			"Update installation",
+			url,
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					theme_version: themeVersion,
+					...(title !== undefined ? { title } : {}),
+				}),
+			},
+			{ retry: false },
+		);
+	}
+
+	/**
+	 * GET …/update/targets — the versions this theme can be updated to, newest
+	 * first. The shape depends on the theme: a forked theme gets exact versions
+	 * ("2.1.1"), a non-forked one gets bare majors ("2"), each already in the form
+	 * `updateInstallation` accepts for it. An empty list means it is already on the
+	 * newest release. Writes nothing.
+	 */
+	async getUpdateTargets(installationId: string): Promise<unknown> {
+		const url = `${this.installationUrl(installationId)}/update/targets`;
+		this.log(`GET ${url}`);
+		return this.requestJson("Get update targets", url, { method: "GET" });
+	}
+
+	/**
+	 * POST …/update/test — read-only dry run of `updateInstallation`: reports how
+	 * many files would lose local edits. Writes nothing.
+	 */
+	async testUpdateInstallation(
+		installationId: string,
+		themeVersion: string,
+	): Promise<unknown> {
+		const url = `${this.installationUrl(installationId)}/update/test`;
+		this.log(`POST ${url}`);
+		return this.requestJson("Test update installation", url, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ theme_version: themeVersion }),
+		});
+	}
+
 	async getFileHashes(installationId: string): Promise<unknown> {
 		const url = `${this.installationUrl(installationId)}/file-hashes`;
 		this.log(`GET ${url}`);
@@ -414,6 +503,19 @@ export class ThemeApiClient {
 		const url = `${this.installationUrl(installationId)}/files${qs ? `?${qs}` : ""}`;
 		this.log(`GET ${url}`);
 		return this.requestJson("GET theme files", url, { method: "GET" });
+	}
+
+	/**
+	 * Single-file read. Not every API version exposes it — callers should be
+	 * ready to fall back to the paginated `getFiles`.
+	 */
+	async getFile(installationId: string, filePath: string): Promise<unknown> {
+		const encoded = encodeFilePathForUrl(filePath);
+		const url = `${this.installationUrl(installationId)}/files/${encoded}`;
+		this.log(`GET ${url}`);
+		return this.requestJson(`GET theme file ${filePath}`, url, {
+			method: "GET",
+		});
 	}
 
 	async upsertFile(

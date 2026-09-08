@@ -101,6 +101,29 @@ describe("addRequiredOption", () => {
 		);
 	});
 
+	it("prompts with promptLabel instead of the flag-derived label", async () => {
+		process.stdin.isTTY = true;
+		process.stdout.isTTY = true;
+		interactionMocks.Input.mockResolvedValueOnce("2.3.1");
+		const action = vi.fn();
+		const cmd = new Command("update");
+		// Without promptLabel this would ask "Enter to:".
+		addRequiredOption(cmd, "--to <version>", "Target version", {
+			promptLabel: 'Target version (e.g. "2" or "2.3.1")',
+		});
+		cmd.exitOverride().action((opts) => action(opts));
+
+		await cmd.parseAsync(["node", "update"]);
+
+		expect(interactionMocks.Input).toHaveBeenCalledWith(
+			'Target version (e.g. "2" or "2.3.1")',
+			expect.objectContaining({ validate: expect.any(Function) }),
+		);
+		expect(action).toHaveBeenCalledWith(
+			expect.objectContaining({ to: "2.3.1" }),
+		);
+	});
+
 	it("uses Password prompt for masked options and Input for the rest", async () => {
 		process.stdin.isTTY = true;
 		process.stdout.isTTY = true;

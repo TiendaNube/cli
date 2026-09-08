@@ -108,6 +108,98 @@ describe("ThemeApiClient.requestJson", () => {
 		);
 	});
 
+	it("posts the target version to …/update, omitting the title when not given", async () => {
+		fetchMock.mockResolvedValueOnce(jsonResponse(201, { id: 11 }));
+		const client = buildClient();
+
+		await expect(client.updateInstallation("10", "2")).resolves.toEqual({
+			id: 11,
+		});
+		const [calledUrl, init] = fetchMock.mock.calls[0] as [string, FetchInit];
+		expect(calledUrl).toBe(
+			"https://api.example.com/v1/42/theme-installations/10/update",
+		);
+		expect(init.method).toBe("POST");
+		expect(JSON.parse(String(init.body))).toEqual({ theme_version: "2" });
+	});
+
+	it("includes the title in the …/update body when given", async () => {
+		fetchMock.mockResolvedValueOnce(jsonResponse(201, { id: 11 }));
+		const client = buildClient();
+
+		await client.updateInstallation("10", "2.3.1", "My upgrade");
+
+		const [, init] = fetchMock.mock.calls[0] as [string, FetchInit];
+		expect(JSON.parse(String(init.body))).toEqual({
+			theme_version: "2.3.1",
+			title: "My upgrade",
+		});
+	});
+
+	it("posts to …/update/test and returns the report", async () => {
+		const report = {
+			baseline_version: "1.0.0",
+			target_version: "2.0.0",
+			conflicts: 1,
+			conflicting_files: ["sections/hero.tpl"],
+		};
+		fetchMock.mockResolvedValueOnce(jsonResponse(200, report));
+		const client = buildClient();
+
+		await expect(client.testUpdateInstallation("10", "2.0.0")).resolves.toEqual(
+			report,
+		);
+		const [calledUrl, init] = fetchMock.mock.calls[0] as [string, FetchInit];
+		expect(calledUrl).toBe(
+			"https://api.example.com/v1/42/theme-installations/10/update/test",
+		);
+		expect(init.method).toBe("POST");
+		expect(JSON.parse(String(init.body))).toEqual({ theme_version: "2.0.0" });
+	});
+
+	it("never retries …/update, even on a retryable status", async () => {
+		// Each call creates a theme. A retry after a lost response leaves the store
+		// with two, and the second one eats an installation slot — so a 503 is
+		// reported rather than re-sent.
+		fetchMock.mockResolvedValue(jsonResponse(503, { message: "unavailable" }));
+		const client = buildClient();
+
+		await expect(client.updateInstallation("10", "2.0.0")).rejects.toThrow(
+			ThemeApiError,
+		);
+		expect(fetchMock).toHaveBeenCalledOnce();
+	});
+
+	it("does not retry …/update on a lost response (fetch timeout)", async () => {
+		// The dangerous case: the API may have created the theme and only the
+		// response went missing, which is indistinguishable from never arriving.
+		fetchMock.mockRejectedValue(
+			new DOMException("The operation was aborted.", "AbortError"),
+		);
+		const client = buildClient();
+
+		await expect(client.updateInstallation("10", "2.0.0")).rejects.toThrow();
+		expect(fetchMock).toHaveBeenCalledOnce();
+	});
+
+	it("still retries the read-only …/update/test on a retryable status", async () => {
+		const report = {
+			baseline_version: "1.0.0",
+			target_version: "2.0.0",
+			conflicts: 0,
+			conflicting_files: [],
+		};
+		fetchMock
+			.mockResolvedValueOnce(jsonResponse(503, { message: "unavailable" }))
+			.mockResolvedValueOnce(jsonResponse(200, report));
+		const client = buildClient();
+
+		await expect(client.testUpdateInstallation("10", "2.0.0")).resolves.toEqual(
+			report,
+		);
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
 	it("uses the API message when the body has no code (e.g. UPSTREAM_ERROR without code)", async () => {
 		fetchMock.mockResolvedValueOnce(
 			jsonResponse(502, { message: "Upstream gateway timed out." }),
@@ -137,6 +229,49 @@ describe("ThemeApiClient.requestJson", () => {
 			operation: "GET theme files",
 			status: 422,
 			code: "THEME_NOT_SECTIONABLE",
+		});
+	});
+});
+
+describe("ThemeApiClient.getFile", () => {
+	let fetchMock: ReturnType<typeof vi.fn>;
+
+	beforeEach(() => {
+		fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	it("encodes each path segment and returns the parsed body", async () => {
+		fetchMock.mockResolvedValueOnce(
+			jsonResponse(200, { path: "sections/my header.tpl", format: "text" }),
+		);
+		const client = buildClient();
+
+		await expect(
+			client.getFile("1", "sections/my header.tpl"),
+		).resolves.toEqual({ path: "sections/my header.tpl", format: "text" });
+		const [calledUrl] = fetchMock.mock.calls[0] as [string, FetchInit];
+		expect(calledUrl).toBe(
+			"https://api.example.com/v1/42/theme-installations/1/files/sections/my%20header.tpl",
+		);
+	});
+
+	it("throws ThemeApiError with the path in the operation label", async () => {
+		fetchMock.mockResolvedValueOnce(
+			jsonResponse(405, { message: "Method Not Allowed", status: 405 }),
+		);
+		const client = buildClient();
+
+		await expect(
+			client.getFile("1", "sections/header.tpl"),
+		).rejects.toMatchObject({
+			name: "ThemeApiError",
+			operation: "GET theme file sections/header.tpl",
+			status: 405,
 		});
 	});
 });

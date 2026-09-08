@@ -68,6 +68,39 @@ describe("ThemeApiInstallationDeleteCommand", () => {
 		);
 	});
 
+	it("labels the theme as '<title> (<id>)' when it has a title", async () => {
+		themeApiCmdMocks.tryLoadResult = {
+			success: true,
+			config: { publicApiToken: "t", storeId: "1", themeId: "10" },
+		};
+		themeApiCmdMocks.getInstallation.mockResolvedValue({
+			id: 10,
+			title: "My Theme",
+		});
+		themeApiCmdMocks.deleteInstallation.mockResolvedValue({});
+		const program = programWithThemeCommand((c) => {
+			new ThemeApiInstallationDeleteCommand().Bind(c);
+		});
+		await parseWithTail(program, ["theme", "delete", "-y"]);
+		expect(themeApiCmdMocks.log).toHaveBeenCalledWith(
+			"Theme 'My Theme' (10) deleted successfully.",
+		);
+	});
+
+	it("fails before deleting when the theme does not exist", async () => {
+		themeApiCmdMocks.tryLoadResult = {
+			success: true,
+			config: { publicApiToken: "t", storeId: "1", themeId: "10" },
+		};
+		themeApiCmdMocks.getInstallation.mockRejectedValue(new Error("404"));
+		const program = programWithThemeCommand((c) => {
+			new ThemeApiInstallationDeleteCommand().Bind(c);
+		});
+		await parseWithTail(program, ["theme", "delete", "-y"]);
+		// The existence check fails the command before anything is deleted.
+		expect(themeApiCmdMocks.deleteInstallation).not.toHaveBeenCalled();
+	});
+
 	it("writes JSON when --json", async () => {
 		themeApiCmdMocks.tryLoadResult = {
 			success: true,

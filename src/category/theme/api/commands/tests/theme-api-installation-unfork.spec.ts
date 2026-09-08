@@ -95,6 +95,13 @@ describe("ThemeApiInstallationUnforkCommand", () => {
 				themeId: "10",
 			},
 		};
+		themeApiCmdMocks.getInstallation.mockImplementation((id: string) =>
+			Promise.resolve(
+				id === "11"
+					? { id: 11, title: "My Theme (unforked)" }
+					: { id: 10, title: "My Theme" },
+			),
+		);
 		themeApiCmdMocks.unforkInstallation.mockResolvedValue({ id: "11" });
 		const program = programWithThemeCommand((c) => {
 			new ThemeApiInstallationUnforkCommand().Bind(c);
@@ -111,7 +118,7 @@ describe("ThemeApiInstallationUnforkCommand", () => {
 			"My draft",
 		);
 		expect(themeApiCmdMocks.log).toHaveBeenCalledWith(
-			"Theme 10 unforked successfully; new theme 11 was created.",
+			"Theme 'My Theme' (10) unforked successfully; new theme 'My Theme (unforked)' (11) was created.",
 		);
 	});
 

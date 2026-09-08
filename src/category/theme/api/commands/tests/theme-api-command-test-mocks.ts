@@ -33,7 +33,11 @@ vi.mock("../../theme-api-client", async () => {
 			forkInstallation: themeApiCmdMocks.forkInstallation,
 			cloneInstallation: themeApiCmdMocks.cloneInstallation,
 			unforkInstallation: themeApiCmdMocks.unforkInstallation,
+			updateInstallation: themeApiCmdMocks.updateInstallation,
+			testUpdateInstallation: themeApiCmdMocks.testUpdateInstallation,
+			getUpdateTargets: themeApiCmdMocks.getUpdateTargets,
 			getFiles: themeApiCmdMocks.getFiles,
+			getFile: themeApiCmdMocks.getFile,
 			getFileHashes: themeApiCmdMocks.getFileHashes,
 			upsertFile: themeApiCmdMocks.upsertFile,
 			deleteFile: themeApiCmdMocks.deleteFile,
@@ -53,6 +57,7 @@ vi.mock("../../../../../cli-interaction", () => ({
 	CliInteraction: vi.fn().mockImplementation(() => ({
 		Confirm: themeApiCmdMocks.confirm,
 		Input: themeApiCmdMocks.input,
+		Select: themeApiCmdMocks.select,
 		Password: themeApiCmdMocks.password,
 	})),
 }));
@@ -94,6 +99,7 @@ export function resetThemeApiCmdMocks(): void {
 	themeApiCmdMocks.confirm.mockReset();
 	themeApiCmdMocks.confirm.mockResolvedValue(true);
 	themeApiCmdMocks.input.mockReset().mockResolvedValue("");
+	themeApiCmdMocks.select.mockReset().mockResolvedValue("");
 	themeApiCmdMocks.password.mockReset().mockResolvedValue("");
 	themeApiCmdMocks.listInstallations.mockReset();
 	themeApiCmdMocks.getInstallation.mockReset();
@@ -103,7 +109,11 @@ export function resetThemeApiCmdMocks(): void {
 	themeApiCmdMocks.forkInstallation.mockReset();
 	themeApiCmdMocks.cloneInstallation.mockReset();
 	themeApiCmdMocks.unforkInstallation.mockReset();
+	themeApiCmdMocks.updateInstallation.mockReset();
+	themeApiCmdMocks.testUpdateInstallation.mockReset();
+	themeApiCmdMocks.getUpdateTargets.mockReset();
 	themeApiCmdMocks.getFiles.mockReset();
+	themeApiCmdMocks.getFile.mockReset();
 	themeApiCmdMocks.getFileHashes.mockReset();
 	themeApiCmdMocks.upsertFile.mockReset();
 	themeApiCmdMocks.deleteFile.mockReset();

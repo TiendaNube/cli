@@ -3,9 +3,13 @@ import { Option } from "commander";
 import { CliError, runAction } from "../../../../cli-action";
 import { CliInteraction } from "../../../../cli-interaction";
 import { CliLogger } from "../../../../cli-logger";
-import { confirmOrAbort } from "../../../../interactivity";
+import { assertConfirmable, confirmOrAbort } from "../../../../interactivity";
 import { resolveThemeIdOrFail } from "../../theme-id-resolver";
-import { resolveDerivedTitle } from "../../theme-title-resolver";
+import {
+	formatThemeLabel,
+	resolveDerivedTitle,
+	resolveThemeLabel,
+} from "../../theme-title-resolver";
 import { ThemeWorkspaceConfigManager } from "../../theme-workspace-config-manager";
 import {
 	addHiddenThemeApiHeaderOption,
@@ -75,9 +79,17 @@ export class ThemeApiInstallationUnforkCommand {
 			getClient: () => client,
 		});
 
+		// Reject an unconfirmable run (non-interactive without --yes) before any
+		// network call; the labeled prompt still runs below for interactive runs.
+		assertConfirmable(command);
+
+		// One fetch feeds both the source label and the default title, and proves
+		// the source exists before the destructive confirm.
+		const installation = await client.getInstallation(themeId);
+		const label = formatThemeLabel(installation, themeId);
+
 		const title = await resolveDerivedTitle({
-			client,
-			themeId,
+			installation,
 			provided: options.title,
 			command,
 			interaction: this.interaction,
@@ -88,7 +100,7 @@ export class ThemeApiInstallationUnforkCommand {
 		const confirmed = await confirmOrAbort(
 			command,
 			this.interaction,
-			`Unforking theme ${themeId} creates a new draft that keeps your templates and settings but drops the forked theme code, re-enabling automatic Nuvemshop/Tiendanube updates. The source theme is left untouched. Do you want to continue?`,
+			`Unforking theme ${label} creates a new draft that keeps your templates and settings but drops the forked theme code, re-enabling automatic Nuvemshop/Tiendanube updates. The source theme is left untouched. Do you want to continue?`,
 		);
 		if (!confirmed) {
 			return;
@@ -100,10 +112,11 @@ export class ThemeApiInstallationUnforkCommand {
 			return;
 		}
 		const newId = extractThemeIdFromResponse(result);
+		const newLabel = newId ? await resolveThemeLabel(client, newId) : null;
 		this.logger.Log(
-			newId
-				? `Theme ${themeId} unforked successfully; new theme ${newId} was created.`
-				: `Theme ${themeId} unforked successfully; a new theme was created.`,
+			newLabel
+				? `Theme ${label} unforked successfully; new theme ${newLabel} was created.`
+				: `Theme ${label} unforked successfully; a new theme was created.`,
 		);
 	}
 

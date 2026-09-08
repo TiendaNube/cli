@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { describe, expect, it } from "vitest";
-import { ThemeCommands } from "../theme-commands";
+import { ThemeCommands } from "./theme-commands";
 
 describe("Theme command tree", () => {
 	it("binds theme with Public API theme subcommands and ftp group", () => {
@@ -17,6 +17,7 @@ describe("Theme command tree", () => {
 				"create",
 				"current",
 				"delete",
+				"diff",
 				"fork",
 				"ftp",
 				"installation",
@@ -27,6 +28,7 @@ describe("Theme command tree", () => {
 				"pull",
 				"push",
 				"unfork",
+				"update",
 				"watch",
 			].sort(),
 		);
