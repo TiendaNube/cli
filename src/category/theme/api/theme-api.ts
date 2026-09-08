@@ -1,5 +1,6 @@
 import type { Command } from "commander";
 import { ThemeApiAuthorizeCommand } from "./commands/theme-api-authorize";
+import { ThemeApiDiffCommand } from "./commands/theme-api-diff";
 import { ThemeApiInstallationCloneCommand } from "./commands/theme-api-installation-clone";
 import { ThemeApiInstallationCreateCommand } from "./commands/theme-api-installation-create";
 import { ThemeApiInstallationCurrentCommand } from "./commands/theme-api-installation-current";
@@ -10,6 +11,7 @@ import { ThemeApiInstallationPerformanceCommand } from "./commands/theme-api-ins
 import { ThemeApiInstallationPreviewCommand } from "./commands/theme-api-installation-preview";
 import { ThemeApiInstallationPublishCommand } from "./commands/theme-api-installation-publish";
 import { ThemeApiInstallationUnforkCommand } from "./commands/theme-api-installation-unfork";
+import { ThemeApiInstallationUpdateCommand } from "./commands/theme-api-installation-update";
 import { ThemeApiPullCommand } from "./commands/theme-api-pull";
 import { ThemeApiPushCommand } from "./commands/theme-api-push";
 import { ThemeApiWatchCommand } from "./commands/theme-api-watch";
@@ -25,11 +27,13 @@ export class ThemeApiCommands {
 		new ThemeApiInstallationPublishCommand().Bind(theme);
 		new ThemeApiInstallationForkCommand().Bind(theme);
 		new ThemeApiInstallationUnforkCommand().Bind(theme);
+		new ThemeApiInstallationUpdateCommand().Bind(theme);
 		new ThemeApiInstallationPreviewCommand().Bind(theme);
 		new ThemeApiInstallationPerformanceCommand().Bind(theme);
 		new ThemeApiInstallationDeleteCommand().Bind(theme);
 		new ThemeApiInstallationCurrentCommand().Bind(theme);
 		new ThemeApiPullCommand().Bind(theme);
+		new ThemeApiDiffCommand().Bind(theme);
 		new ThemeApiPushCommand().Bind(theme);
 		new ThemeApiWatchCommand().Bind(theme);
 		new ThemeApiDeprecatedInstallationCommands().Bind(theme);

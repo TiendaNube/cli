@@ -2,7 +2,8 @@ import type { Command } from "commander";
 import { CliError } from "./cli-action";
 import type { CliInteraction } from "./cli-interaction";
 
-function isTruthyEnv(value: string | undefined): boolean {
+/** Shared "is this env var set to something meaningful" rule (CI, DO_NOT_TRACK, …). */
+export function isTruthyEnv(value: string | undefined): boolean {
 	return (
 		value !== undefined &&
 		value !== "" &&
@@ -24,6 +25,24 @@ export function isInteractive(cmd?: Command): boolean {
 }
 
 /**
+ * Fails fast when a destructive command cannot be confirmed:
+ * - `--yes` set => no-op.
+ * - non-interactive (CI / no TTY) without `--yes` => abort with a clear error.
+ * - real TTY => no-op (the prompt happens later, once there is a message to show).
+ *
+ * Call this before any network request so an unconfirmable run rejects without
+ * side effects; the labeled prompt still runs through `confirmOrAbort`.
+ */
+export function assertConfirmable(cmd: Command): void {
+	if (yesFlagSet(cmd)) return;
+	if (!isInteractive(cmd)) {
+		throw new CliError(
+			"Destructive operation requires confirmation. Re-run with --yes in non-interactive mode.",
+		);
+	}
+}
+
+/**
  * Resolves a destructive confirmation uniformly:
  * - `--yes` set => proceed without asking.
  * - non-interactive (CI / no TTY) without `--yes` => abort with a clear error.
@@ -34,11 +53,7 @@ export async function confirmOrAbort(
 	interaction: CliInteraction,
 	message: string,
 ): Promise<boolean> {
+	assertConfirmable(cmd);
 	if (yesFlagSet(cmd)) return true;
-	if (!isInteractive(cmd)) {
-		throw new CliError(
-			"Destructive operation requires confirmation. Re-run with --yes in non-interactive mode.",
-		);
-	}
 	return interaction.Confirm(message);
 }

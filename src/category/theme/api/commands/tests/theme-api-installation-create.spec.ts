@@ -91,6 +91,10 @@ describe("ThemeApiInstallationCreateCommand", () => {
 			config: { publicApiToken: "t", storeId: "1" },
 		};
 		themeApiCmdMocks.createInstallation.mockResolvedValue({ id: "new" });
+		themeApiCmdMocks.getInstallation.mockResolvedValue({
+			id: "new",
+			title: "My theme",
+		});
 		const program = programWithThemeCommand((c) => {
 			new ThemeApiInstallationCreateCommand().Bind(c);
 		});
@@ -107,7 +111,7 @@ describe("ThemeApiInstallationCreateCommand", () => {
 			title: "My theme",
 		});
 		expect(themeApiCmdMocks.log).toHaveBeenCalledWith(
-			"Theme new created successfully.",
+			"Theme 'My theme' (new) created successfully.",
 		);
 		expect(stderrSpy).not.toHaveBeenCalled();
 	});
