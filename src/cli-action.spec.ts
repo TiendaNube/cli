@@ -7,11 +7,14 @@ const loggerMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("./cli-logger", () => ({
-	CliLogger: vi.fn().mockImplementation(() => ({
-		Error: loggerMocks.Error,
-		Warn: loggerMocks.Warn,
-		Log: loggerMocks.Log,
-	})),
+	// biome-ignore lint/complexity/useArrowFunction: vitest 4 constructs mocks called with `new`, and an arrow implementation throws "is not a constructor"
+	CliLogger: vi.fn().mockImplementation(function () {
+		return {
+			Error: loggerMocks.Error,
+			Warn: loggerMocks.Warn,
+			Log: loggerMocks.Log,
+		};
+	}),
 }));
 
 import { CancelError, CliError, runAction } from "./cli-action";

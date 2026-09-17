@@ -9,6 +9,9 @@ export const ftpCmdMocks = {
 		  }
 		| { success: false; error: string },
 	save: vi.fn(),
+	markPulled: vi.fn(),
+	/** Which family last pulled; undefined means unrecorded, which is allowed. */
+	lastSync: undefined as "api" | "ftp" | undefined,
 	log: vi.fn(),
 	error: vi.fn(),
 	confirm: vi.fn().mockResolvedValue(true),

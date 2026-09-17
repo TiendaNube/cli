@@ -58,20 +58,19 @@ describe("computeFileChangeStatus", () => {
 		).toBe("changed");
 	});
 
-	it("accepts the PHP-serialized hash for JSON files", () => {
+	it("compares JSON by raw bytes, not by re-serialized content", () => {
 		const content = { label: "Búsqueda", url: "http://x.com/p" };
-		const map = new Map([["config/a.json", jsonContentHash(content)]]);
 		const pretty = Buffer.from(`${JSON.stringify(content, null, 2)}\n`, "utf8");
-		expect(computeFileChangeStatus("config/a.json", pretty, map)).toBe(
+		// Remote stores the raw-byte MD5 of the pulled file, so the same bytes match.
+		const rawMap = new Map([["config/a.json", md5(pretty.toString("utf8"))]]);
+		expect(computeFileChangeStatus("config/a.json", pretty, rawMap)).toBe(
 			"unchanged",
 		);
-	});
-
-	it("reports invalid JSON as changed", () => {
-		const map = new Map([["config/a.json", "somehash"]]);
-		expect(
-			computeFileChangeStatus("config/a.json", Buffer.from("{not json"), map),
-		).toBe("changed");
+		// A hash of the compact re-serialized form no longer counts as a match.
+		const compactMap = new Map([["config/a.json", jsonContentHash(content)]]);
+		expect(computeFileChangeStatus("config/a.json", pretty, compactMap)).toBe(
+			"changed",
+		);
 	});
 });
 

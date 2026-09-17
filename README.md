@@ -53,9 +53,11 @@ npx --package=@tiendanube/cli tiendanube --help
 ## Quick start
 
 1. Create a folder for your theme and open a terminal there.
-2. **Pick a sync mode** (see [CLI Official Documentation](https://dev.nuvemshop.com.br/docs/developer-tools/cli/getting-started) to choose):
+2. **Set up a sync mode** (see [CLI Official Documentation](https://nuvemshop.dev/themes/developer-tools/cli/getting-started) to choose):
    - **FTP:** run `nuvemshop theme ftp setup` (FTP credentials and store URL).
    - **Fork (Public API):** run `nuvemshop theme authorize` (sign in via the browser and paste the token).
+
+   You can run **both** in the same folder — they are not exclusive. That is useful even for a classic theme, since the theme management commands (`theme list`, `theme create`, `theme publish`, `theme delete`) exist only in the Fork family.
 3. **Download the theme** (required before `push` or `watch`, so the local folder mirrors the remote state):
    - **FTP:** `tiendanube theme ftp pull`.
    - **Fork:** find the theme id with `tiendanube theme list`, then run `tiendanube theme pull --theme-id <id>`. The id is saved as the default in `.nuvem`, so later commands do not need `--theme-id` again. If you do not have a theme yet, create one first with `tiendanube theme create --base-theme "ipanema" --title "<title>"` and use the id it prints.
@@ -94,9 +96,9 @@ nuvemshop theme ftp setup \
   --store-url https://mystore.lojavirtualnuvem.com.br/
 ```
 
-> **Tip:** Find your FTP credentials in the [FTP Workflow Official Documentation](https://dev.nuvemshop.com.br/docs/developer-tools/cli/ftp-workflow).
+> **Tip:** Find your FTP credentials in the [FTP Workflow Official Documentation](https://nuvemshop.dev/themes/developer-tools/cli/ftp-workflow).
 
-`theme ftp setup` writes **`.nuvem`** with FTP settings and your store URL. It is **obfuscated, not encrypted**.
+`theme ftp setup` writes **`.nuvem`** with FTP settings and your store URL. It is **obfuscated, not encrypted**. It does not remove Public API credentials already in the file, and the Fork commands keep working alongside it — see [Theme Fork (Public API)](#theme-fork-public-api).
 
 Do not commit or share it. Add `.nuvem` to `.gitignore`.
 
@@ -106,7 +108,7 @@ Do not commit or share it. Add `.nuvem` to `.gitignore`.
 
 #### `theme ftp push`
 
-**Optional:** `-y` (skip overwrite confirmation), `-v` (verbose FTP), `--force` (skip remote comparison and upload all files)
+**Optional:** `-y` (skip overwrite confirmation), `-v` (verbose FTP), `--force` (skip remote comparison and upload all files; also overrides the refusal to push a tree pulled over the Public API)
 
 #### `theme ftp watch`
 
@@ -170,7 +172,11 @@ Use these commands when syncing a **sections-based theme** via the **Public API*
 | `theme publish` | Make the theme live (productive) |
 
 
-**`.nuvem`:** Same file as FTP, **it's obfuscated, not encrypted**. It can hold either FTP config or API config, or both blocks merged if you switch modes. Do not commit it.
+**`.nuvem`:** Same file as FTP, **it's obfuscated, not encrypted**. Do not commit it.
+
+It holds the FTP block, the API block, or **both** — and both command families work from the same directory, so you can run `theme list` or `theme create` while syncing a classic theme over FTP. Each family needs only its own credentials: an API command that finds no API block tells you to run `theme authorize`, it does not declare the directory an FTP-only one.
+
+To keep the two from mixing, the CLI records which family last pulled, and a push refuses a tree that came from the other one — uploading a sections-based theme to a classic one (or the reverse) would overwrite it with the wrong kind of files. Run the matching `pull` first, or pass `--force` to upload anyway; the confirmation says when `--force` is doing that. `watch` refuses outright, since it pushes on every save. A workspace that has never pulled — a fresh clone from git, for example — is not blocked.
 
 #### `theme authorize`
 
@@ -265,7 +271,7 @@ nuvemshop theme diff --json --detailed
 
 Upload local files to a theme.
 
-**Optional:** `--theme-id` (defaults to the id saved by `theme pull`), **`-y`** (skip publish confirmation), **`-v`** (verbose HTTP), **`--force`** (upload all files without remote comparison, skipping unchanged detection).
+**Optional:** `--theme-id` (defaults to the id saved by `theme pull`), **`-y`** (skip publish confirmation), **`-v`** (verbose HTTP), **`--force`** (upload all files without remote comparison, skipping unchanged detection; also overrides the refusal to push a tree pulled over FTP).
 
 ```bash
 nuvemshop theme push
@@ -459,11 +465,11 @@ Deleting that file clears your choice, which means collection returns to being o
 
 ## Official documentation
 
-For guides on stores, themes, FTP, and the platform (language and region may vary):
+The developer portal holds the full guides for the CLI, themes, and the platform:
 
-- **Nuvemshop / Tiendanube:** [CLI DevHub Documentation](https://dev.nuvemshop.com.br/docs/developer-tools/cli)
+- **[CLI documentation](https://nuvemshop.dev/themes/developer-tools/cli/overview)** — a page per workflow, Fork (Public API) and FTP, plus theme development and theme installations.
 
-Search those sites for **FTP**, **tema**, or **theme** to reach the articles that match your storefront product.
+Use the language selector in the portal to read it in Portuguese, Spanish, or English.
 
 ## Uninstallation
 

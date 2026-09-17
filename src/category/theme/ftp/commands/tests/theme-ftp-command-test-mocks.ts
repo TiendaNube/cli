@@ -2,34 +2,48 @@ import { vi } from "vitest";
 import { ftpCmdMocks } from "./theme-ftp-cmd-mock-impl";
 
 vi.mock("../../theme-ftp-config-manager", () => ({
-	ThemeFtpConfigManager: vi.fn().mockImplementation(() => ({
-		IsSet: () => ftpCmdMocks.isSet,
-		TryLoad: () => ftpCmdMocks.tryLoadResult,
-		Save: ftpCmdMocks.save,
-	})),
+	// biome-ignore lint/complexity/useArrowFunction: vitest 4 constructs mocks called with `new`, and an arrow implementation throws "is not a constructor"
+	ThemeFtpConfigManager: vi.fn().mockImplementation(function () {
+		return {
+			IsSet: () => ftpCmdMocks.isSet,
+			TryLoad: () => ftpCmdMocks.tryLoadResult,
+			Save: ftpCmdMocks.save,
+			MarkPulled: ftpCmdMocks.markPulled,
+			LastSync: () => ftpCmdMocks.lastSync,
+		};
+	}),
 }));
 
 vi.mock("../../theme-ftp-client", () => ({
-	ThemeFtpClient: vi.fn().mockImplementation(() => ({
-		Test: ftpCmdMocks.testFtp,
-		DownloadAll: ftpCmdMocks.downloadAll,
-		SyncAll: ftpCmdMocks.syncAll,
-		Upload: ftpCmdMocks.upload,
-		Delete: ftpCmdMocks.delete,
-	})),
+	// biome-ignore lint/complexity/useArrowFunction: vitest 4 constructs mocks called with `new`, and an arrow implementation throws "is not a constructor"
+	ThemeFtpClient: vi.fn().mockImplementation(function () {
+		return {
+			Test: ftpCmdMocks.testFtp,
+			DownloadAll: ftpCmdMocks.downloadAll,
+			SyncAll: ftpCmdMocks.syncAll,
+			Upload: ftpCmdMocks.upload,
+			Delete: ftpCmdMocks.delete,
+		};
+	}),
 }));
 
 vi.mock("../../../../../cli-logger", () => ({
-	CliLogger: vi.fn().mockImplementation(() => ({
-		Log: ftpCmdMocks.log,
-		Error: ftpCmdMocks.error,
-	})),
+	// biome-ignore lint/complexity/useArrowFunction: vitest 4 constructs mocks called with `new`, and an arrow implementation throws "is not a constructor"
+	CliLogger: vi.fn().mockImplementation(function () {
+		return {
+			Log: ftpCmdMocks.log,
+			Error: ftpCmdMocks.error,
+		};
+	}),
 }));
 
 vi.mock("../../../../../cli-interaction", () => ({
-	CliInteraction: vi.fn().mockImplementation(() => ({
-		Confirm: ftpCmdMocks.confirm,
-	})),
+	// biome-ignore lint/complexity/useArrowFunction: vitest 4 constructs mocks called with `new`, and an arrow implementation throws "is not a constructor"
+	CliInteraction: vi.fn().mockImplementation(function () {
+		return {
+			Confirm: ftpCmdMocks.confirm,
+		};
+	}),
 }));
 
 vi.mock("../../../../../cli-executable-name", () => ({
@@ -63,6 +77,8 @@ export function resetFtpCmdMocks(): void {
 	ftpCmdMocks.isSet = false;
 	ftpCmdMocks.tryLoadResult = { success: false, error: "bad" };
 	ftpCmdMocks.save.mockClear();
+	ftpCmdMocks.markPulled.mockClear();
+	ftpCmdMocks.lastSync = undefined;
 	ftpCmdMocks.log.mockClear();
 	ftpCmdMocks.error.mockClear();
 	ftpCmdMocks.confirm.mockReset();

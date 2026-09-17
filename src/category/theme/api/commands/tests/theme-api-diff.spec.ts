@@ -12,7 +12,6 @@ import {
 	vi,
 } from "vitest";
 import { ThemeApiClient } from "../../theme-api-client";
-import { jsonContentHash } from "../../theme-api-diff";
 import { ThemeApiError } from "../../theme-api-error";
 import { ThemeApiDiffCommand } from "../theme-api-diff";
 import { parseWithTail, programWithThemeCommand } from "./helpers";
@@ -305,19 +304,18 @@ describe("ThemeApiDiffCommand", () => {
 		expect(parsed.modified[0].patch).toBeNull();
 	});
 
-	it("does not report JSON files that only differ in formatting", async () => {
+	it("does not report JSON files whose raw bytes match the remote", async () => {
 		const jsonObj = { greeting: "Hello", count: 42 };
+		const pretty = `${JSON.stringify(jsonObj, null, 2)}\n`;
 		themeApiCmdMocks.tryLoadResult = completeConfig();
 		themeApiCmdMocks.getFileHashes.mockResolvedValue({
-			// The remote keeps the PHP-serialized hash while the local file is
-			// pretty-printed, so only the semantic comparison can match.
-			hashes: { "config/settings.json": jsonContentHash(jsonObj) },
+			// The remote stores the MD5 of the file's raw bytes as pulled, so the
+			// same bytes on disk hash identically and never show as modified.
+			hashes: { "config/settings.json": md5(pretty) },
 		});
 		readFileSpy = vi
 			.spyOn(fs, "readFileSync")
-			.mockReturnValue(
-				Buffer.from(`${JSON.stringify(jsonObj, null, 2)}\n`, "utf8"),
-			);
+			.mockReturnValue(Buffer.from(pretty, "utf8"));
 		readdirpMocks.readdirpPromise.mockResolvedValue([
 			{ fullPath: path.join(cwd, "config", "settings.json") },
 		]);

@@ -8,10 +8,13 @@ const log = vi.fn();
 const error = vi.fn();
 
 vi.mock("../../../../cli-logger", () => ({
-	CliLogger: vi.fn().mockImplementation(() => ({
-		Log: log,
-		Error: error,
-	})),
+	// biome-ignore lint/complexity/useArrowFunction: vitest 4 constructs mocks called with `new`, and an arrow implementation throws "is not a constructor"
+	CliLogger: vi.fn().mockImplementation(function () {
+		return {
+			Log: log,
+			Error: error,
+		};
+	}),
 }));
 
 vi.mock("../../scan-theme-slots", () => ({

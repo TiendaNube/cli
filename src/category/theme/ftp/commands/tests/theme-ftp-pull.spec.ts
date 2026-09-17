@@ -57,6 +57,24 @@ describe("ThemeFtpPullCommand", () => {
 		await parseWithTail(program, ["ftp", "pull", "-y"]);
 		expect(ftpCmdMocks.downloadAll).toHaveBeenCalled();
 		expect(ftpCmdMocks.log).toHaveBeenCalledWith("Download completed");
+		// Records the origin so a later API push refuses this tree.
+		expect(ftpCmdMocks.markPulled).toHaveBeenCalled();
+	});
+
+	it("does not record the sync origin when the download fails", async () => {
+		// A failed pull leaves whatever the previous pull put here, so claiming
+		// FTP as the origin would misreport the tree.
+		ftpCmdMocks.isSet = true;
+		ftpCmdMocks.tryLoadResult = { success: true, config: validFtpConfig };
+		ftpCmdMocks.downloadAll.mockResolvedValue({
+			success: false,
+			errorMessage: "boom",
+		});
+		const program = programWithFtpSubcommand((c) => {
+			new ThemeFtpPullCommand().Bind(c);
+		});
+		await parseWithTail(program, ["ftp", "pull", "-y"]);
+		expect(ftpCmdMocks.markPulled).not.toHaveBeenCalled();
 	});
 
 	it("cleans non-hidden entries before downloading and preserves dot-hidden entries", async () => {

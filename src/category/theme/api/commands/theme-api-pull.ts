@@ -143,6 +143,9 @@ export class ThemeApiPullCommand {
 				: themeId;
 		if (!loaded.ephemeral) {
 			this.workspace.mergeWorkspace({
+				// Records that these local files came from the Public API, so an FTP
+				// push refuses to upload them to a different kind of theme.
+				lastSync: "api",
 				"theme-api": {
 					...config,
 					themeId: persistedThemeId,

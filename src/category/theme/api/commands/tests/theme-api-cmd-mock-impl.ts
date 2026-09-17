@@ -6,6 +6,9 @@ export const themeApiCmdMocks = {
 		| { success: true; config: Record<string, unknown> }
 		| { success: false; error: string },
 	mergeWorkspace: vi.fn(),
+	/** Which family last pulled; undefined means unrecorded, which is allowed. */
+	lastSync: undefined as "api" | "ftp" | undefined,
+	recordLastSync: vi.fn(),
 	isSet: false,
 	readWorkspaceReturn: {} as Record<string, unknown>,
 	log: vi.fn(),

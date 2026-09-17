@@ -6,6 +6,7 @@ import puppeteer, { type Browser, type Page } from "puppeteer";
 import { CliError, runAction } from "../../../../cli-action";
 import { getCliExecutableName } from "../../../../cli-executable-name";
 import { CliLogger } from "../../../../cli-logger";
+import { crossFamilyWatchRefusal } from "../../theme-workspace-sync-origin";
 import { ThemeFtpClient } from "../theme-ftp-client";
 import type { ThemeFtpClientConfig } from "../theme-ftp-client-config";
 import { ThemeFtpConfigManager } from "../theme-ftp-config-manager";
@@ -67,6 +68,19 @@ export class ThemeFtpWatchCommand {
 		if (!loaded.success) {
 			throw new CliError(loaded.error);
 		}
+
+		// Checked once at startup: a watch pushes on every save, so a cross-family
+		// watch is the same hazard as a cross-family push, running continuously.
+		// No --force here on purpose — for a long-lived loop, refusing with an
+		// actionable message beats offering an escape hatch.
+		const watchRefusal = crossFamilyWatchRefusal({
+			target: "ftp",
+			lastSync: this.configurationManager.LastSync(),
+		});
+		if (watchRefusal !== null) {
+			throw new CliError(watchRefusal);
+		}
+
 		const ftpConfig: ThemeFtpClientConfig = loaded.config.ftp;
 		ftpConfig.verbose = options.v;
 		const client = new ThemeFtpClient(ftpConfig);

@@ -8,6 +8,16 @@ import {
 	resetFtpCmdMocks,
 } from "./theme-ftp-command-test-mocks";
 
+const validFtpConfig = {
+	ftp: {
+		ftpServer: "s",
+		ftpUsername: "u",
+		ftpPassword: "p",
+		verbose: false,
+	},
+	storeUrl: "https://shop.example.com",
+} as const;
+
 describe("ThemeFtpPushCommand", () => {
 	beforeEach(() => {
 		resetFtpCmdMocks();
@@ -93,5 +103,54 @@ describe("ThemeFtpPushCommand", () => {
 		await parseWithTail(program, ["ftp", "push", "--force"]);
 		expect(ftpCmdMocks.confirm).toHaveBeenCalled();
 		expect(ftpCmdMocks.syncAll).not.toHaveBeenCalled();
+	});
+
+	it("refuses to upload a tree that was pulled over the API", async () => {
+		// The workspace holds both credential families, so these files may be a
+		// sections-based theme; uploading them over FTP would overwrite a classic
+		// theme with the wrong kind of files.
+		ftpCmdMocks.isSet = true;
+		ftpCmdMocks.tryLoadResult = { success: true, config: validFtpConfig };
+		ftpCmdMocks.lastSync = "api";
+		const program = programWithFtpSubcommand((c) => {
+			new ThemeFtpPushCommand().Bind(c);
+		});
+		await parseWithTail(program, ["ftp", "push", "-y"]);
+		expect(ftpCmdMocks.syncAll).not.toHaveBeenCalled();
+		expect(ftpCmdMocks.error).toHaveBeenCalledWith(
+			expect.stringContaining("last pulled over Public API"),
+		);
+	});
+
+	it("allows the push when the recorded origin is FTP or unrecorded", async () => {
+		ftpCmdMocks.isSet = true;
+		ftpCmdMocks.tryLoadResult = { success: true, config: validFtpConfig };
+		ftpCmdMocks.syncAll.mockResolvedValue({ success: true });
+
+		for (const origin of ["ftp", undefined] as const) {
+			ftpCmdMocks.syncAll.mockClear();
+			ftpCmdMocks.lastSync = origin;
+			const program = programWithFtpSubcommand((c) => {
+				new ThemeFtpPushCommand().Bind(c);
+			});
+			await parseWithTail(program, ["ftp", "push", "-y"]);
+			expect(ftpCmdMocks.syncAll, `origin=${origin}`).toHaveBeenCalled();
+		}
+	});
+
+	it("names the mismatch in the confirmation when --force overrides it", async () => {
+		// --force unlocks the upload; it must not do so silently.
+		ftpCmdMocks.isSet = true;
+		ftpCmdMocks.tryLoadResult = { success: true, config: validFtpConfig };
+		ftpCmdMocks.lastSync = "api";
+		forceInteractiveTestEnv();
+		ftpCmdMocks.confirm.mockResolvedValueOnce(false);
+		const program = programWithFtpSubcommand((c) => {
+			new ThemeFtpPushCommand().Bind(c);
+		});
+		await parseWithTail(program, ["ftp", "push", "--force"]);
+		expect(ftpCmdMocks.confirm).toHaveBeenCalledWith(
+			expect.stringContaining("last pulled over Public API"),
+		);
 	});
 });

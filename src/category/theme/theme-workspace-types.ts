@@ -4,6 +4,9 @@ import type { ThemeFtpConfig } from "./ftp/theme-ftp-config";
 
 export type ThemeManagement = "ftp" | "api";
 
+/** Which command family last wrote the local files. */
+export type ThemeSyncFamily = "ftp" | "api";
+
 export type ThemeApiConfig = {
 	publicApiToken: string;
 	storeId: string;
@@ -14,7 +17,18 @@ export type ThemeApiConfig = {
 };
 
 export type ThemeWorkspaceDocument = {
+	/**
+	 * Which family was configured most recently. Advisory only — the loaders
+	 * resolve on the presence of the section they need, so a workspace holding
+	 * both `theme-api` and `theme-ftp` can use both command families. Still
+	 * written so that an older CLI, which does gate on this, keeps working.
+	 */
 	themeManagement?: ThemeManagement;
+	/**
+	 * Which family last pulled the local files. Read by the push commands to
+	 * refuse uploading a tree that came from the other family.
+	 */
+	lastSync?: ThemeSyncFamily;
 	"theme-ftp"?: ThemeFtpConfig;
 	"theme-api"?: ThemeApiConfig;
 };

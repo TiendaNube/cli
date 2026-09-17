@@ -75,6 +75,28 @@ describe("ThemeApiWatchCommand", () => {
 		expect(chokidarWatch).toHaveBeenCalled();
 	});
 
+	it("refuses to watch a tree that was pulled over FTP", async () => {
+		// A watch uploads on every save, so a cross-family watch is a continuous
+		// cross-family push. There is no --force here by design.
+		themeApiCmdMocks.tryLoadResult = {
+			success: true,
+			config: { publicApiToken: "t", storeId: "1", themeId: "5" },
+		};
+		themeApiCmdMocks.getInstallation.mockResolvedValue({ forked: true });
+		themeApiCmdMocks.lastSync = "ftp";
+		const program = programWithThemeCommand((c) => {
+			new ThemeApiWatchCommand().Bind(c);
+		});
+		await parseWithTail(program, ["theme", "watch", "--no-browser"]);
+		expect(chokidarWatch).not.toHaveBeenCalled();
+		expect(themeApiCmdMocks.error).toHaveBeenCalledWith(
+			expect.stringContaining("on every save"),
+		);
+		expect(themeApiCmdMocks.error).not.toHaveBeenCalledWith(
+			expect.stringContaining("--force"),
+		);
+	});
+
 	it("accepts deprecated --installation-id and warns on stderr", async () => {
 		themeApiCmdMocks.tryLoadResult = {
 			success: true,

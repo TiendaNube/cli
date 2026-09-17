@@ -7,7 +7,6 @@ import {
 	type ThemeDiffLocalFile,
 	type ThemeDiffResult,
 	computeThemeDiff,
-	jsonContentHash,
 } from "./theme-api-diff";
 import {
 	getThemeFileFormat,
@@ -42,27 +41,11 @@ export function computeFileChangeStatus(
 	// from the remote's perspective. We count it as unchanged to avoid false positives.
 	if (remoteHash === undefined) return "unchanged";
 
+	// The remote stores the MD5 of the file's raw bytes as pulled, so compare against
+	// the raw bytes directly for every format — no per-format normalisation.
 	const localHash = crypto.createHash("md5").update(rawBytes).digest("hex");
 
-	// Fast path: raw byte content is identical, no need for further checks.
-	if (localHash === remoteHash) return "unchanged";
-
-	// For JSON files, the raw MD5 may differ even when the semantic content is the same.
-	// The remote stores hashes produced by PHP's json_encode, which enforces its own key
-	// ordering and whitespace. A file formatted locally by a different tool (e.g. Prettier)
-	// will produce a different raw MD5 but should not be reported as changed.
-	// jsonContentHash replicates PHP's serialisation so we can compare apples to apples.
-	if (getThemeFileFormat(norm) === "json") {
-		try {
-			const localJson = JSON.parse(rawBytes.toString("utf8"));
-			const phpHash = jsonContentHash(localJson);
-			if (phpHash === remoteHash) return "unchanged";
-		} catch {
-			// Not valid JSON — fall through and treat as changed.
-		}
-	}
-
-	return "changed";
+	return localHash === remoteHash ? "unchanged" : "changed";
 }
 
 export type ThemeDiffPlan = {
@@ -206,10 +189,9 @@ export async function buildThemeDiffPlan(
 			}
 			const format = getThemeFileFormat(norm);
 			const content = readThemeFileContent(full, format);
-			const hash =
-				format === "json"
-					? jsonContentHash(content)
-					: crypto.createHash("md5").update(rawBytes).digest("hex");
+			// Hash the raw bytes as pulled; the remote stores the same raw-byte MD5,
+			// so identical content never shows as modified (no JSON re-serialisation).
+			const hash = crypto.createHash("md5").update(rawBytes).digest("hex");
 			localFiles.push({ path: norm, full, format, content, hash });
 		} catch (err) {
 			readFailCount += 1;

@@ -6,10 +6,14 @@ import type { ThemeFtpConfig } from "./ftp/theme-ftp-config";
 import type {
 	ThemeApiConfig,
 	ThemeManagement,
+	ThemeSyncFamily,
 	ThemeWorkspaceDocument,
 } from "./theme-workspace-types";
 
 const chalk = new Chalk();
+
+const CONFIG_FILE_NAME = ".nuvem";
+const LEGACY_CONFIG_FILE_NAME = ".nube";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -84,7 +88,47 @@ function migrateLegacyThemeApiFields(
 	return { ...rest, themeId: installationId };
 }
 
+/**
+ * The workspace configuration used to live in `.nube`. Only a regular file is
+ * migrated: other Nuvemshop projects keep a `.nube` directory at the
+ * repository root.
+ */
+function migrateLegacyWorkspaceFile(): void {
+	if (fs.existsSync(CONFIG_FILE_NAME)) {
+		return;
+	}
+
+	let legacy: fs.Stats;
+	try {
+		legacy = fs.statSync(LEGACY_CONFIG_FILE_NAME);
+	} catch {
+		return;
+	}
+	if (!legacy.isFile()) {
+		return;
+	}
+
+	try {
+		fs.renameSync(LEGACY_CONFIG_FILE_NAME, CONFIG_FILE_NAME);
+	} catch {
+		return;
+	}
+
+	process.stderr.write(
+		chalk.yellow(
+			'NOTE: Your ".nube" config file has been automatically renamed to ".nuvem". The CLI now uses ".nuvem" — no action required on your end.\n',
+		),
+	);
+}
+
 function parseManagement(value: unknown): ThemeManagement | undefined {
+	if (value === "ftp" || value === "api") {
+		return value;
+	}
+	return undefined;
+}
+
+function parseSyncFamily(value: unknown): ThemeSyncFamily | undefined {
 	if (value === "ftp" || value === "api") {
 		return value;
 	}
@@ -100,6 +144,9 @@ export function mergeWorkspaceDocuments(
 	if (patch.themeManagement !== undefined) {
 		next.themeManagement = patch.themeManagement;
 	}
+	if (patch.lastSync !== undefined) {
+		next.lastSync = patch.lastSync;
+	}
 	if (patch["theme-ftp"] !== undefined) {
 		next["theme-ftp"] = patch["theme-ftp"];
 	}
@@ -113,22 +160,27 @@ export function mergeWorkspaceDocuments(
 }
 
 export class ThemeWorkspaceConfigManager {
-	public constructor(private readonly configFilePath = ".nuvem") {
-		if (
-			configFilePath === ".nuvem" &&
-			!fs.existsSync(".nuvem") &&
-			fs.existsSync(".nube")
-		) {
-			fs.renameSync(".nube", ".nuvem");
-			process.stderr.write(
-				chalk.yellow(
-					'NOTE: Your ".nube" config file has been automatically renamed to ".nuvem". The CLI now uses ".nuvem" — no action required on your end.\n',
-				),
-			);
+	private migrated = false;
+
+	public constructor(private readonly configFilePath = CONFIG_FILE_NAME) {}
+
+	/**
+	 * Migrates on first access instead of on construction: every command class
+	 * is instantiated on every invocation, including commands unrelated to
+	 * themes.
+	 */
+	private ensureMigrated(): void {
+		if (this.migrated) {
+			return;
+		}
+		this.migrated = true;
+		if (this.configFilePath === CONFIG_FILE_NAME) {
+			migrateLegacyWorkspaceFile();
 		}
 	}
 
 	IsSet(): boolean {
+		this.ensureMigrated();
 		return fs.existsSync(this.configFilePath);
 	}
 
@@ -172,6 +224,10 @@ export class ThemeWorkspaceConfigManager {
 		if (tm !== undefined) {
 			doc.themeManagement = tm;
 		}
+		const ls = parseSyncFamily(parsed.lastSync);
+		if (ls !== undefined) {
+			doc.lastSync = ls;
+		}
 		if (parsed["theme-ftp"] !== undefined) {
 			doc["theme-ftp"] = parsed["theme-ftp"] as ThemeFtpConfig;
 		}
@@ -185,10 +241,12 @@ export class ThemeWorkspaceConfigManager {
 	}
 
 	writeWorkspace(doc: ThemeWorkspaceDocument): void {
+		this.ensureMigrated();
 		const json = JSON.stringify({
 			...(doc.themeManagement !== undefined
 				? { themeManagement: doc.themeManagement }
 				: {}),
+			...(doc.lastSync !== undefined ? { lastSync: doc.lastSync } : {}),
 			...(doc["theme-ftp"] !== undefined
 				? { "theme-ftp": doc["theme-ftp"] }
 				: {}),
@@ -225,18 +283,17 @@ export class ThemeWorkspaceConfigManager {
 				};
 			}
 			const doc = this.readWorkspace();
-			const management = doc.themeManagement;
-			if (management === "api") {
-				return {
-					success: false,
-					error: `This directory is configured for theme API sync. Use ${getCliExecutableName()} theme authorize, theme pull, theme push, or theme watch instead.`,
-				};
-			}
+			// Resolved on the presence of the section this family needs, not on
+			// `themeManagement`: a workspace holding both sections serves both.
 			const themeFtp = doc["theme-ftp"];
 			if (themeFtp === undefined) {
+				const bin = getCliExecutableName();
 				return {
 					success: false,
-					error: `Missing required "theme-ftp" key in "${this.configFilePath}".`,
+					error:
+						doc["theme-api"] !== undefined
+							? `This workspace has Public API credentials but no FTP credentials. Run ${bin} theme ftp setup to add them, or use ${bin} theme pull / theme push instead.`
+							: `Missing required "theme-ftp" key in "${this.configFilePath}". Run ${bin} theme ftp setup first.`,
 				};
 			}
 			if (!isValidThemeFtpConfig(themeFtp)) {
@@ -256,11 +313,7 @@ export class ThemeWorkspaceConfigManager {
 	}
 
 	TryLoadApiConfig():
-		| {
-				success: true;
-				config: ThemeApiConfig;
-				themeManagement: ThemeManagement;
-		  }
+		| { success: true; config: ThemeApiConfig }
 		| { success: false; error: string } {
 		try {
 			if (!this.IsSet()) {
@@ -270,23 +323,17 @@ export class ThemeWorkspaceConfigManager {
 				};
 			}
 			const doc = this.readWorkspace();
-			if (doc.themeManagement === "ftp") {
-				return {
-					success: false,
-					error: `This directory is configured for FTP theme sync. Use ${getCliExecutableName()} theme ftp pull, theme ftp push, or theme ftp watch instead.`,
-				};
-			}
-			if (doc.themeManagement !== "api") {
-				return {
-					success: false,
-					error: `Theme API is not active. Run ${getCliExecutableName()} theme authorize and use theme pull, theme push, or theme watch.`,
-				};
-			}
+			// Resolved on the presence of the section this family needs, not on
+			// `themeManagement`: a workspace holding both sections serves both.
 			const themeApi = doc["theme-api"];
 			if (themeApi === undefined) {
+				const bin = getCliExecutableName();
 				return {
 					success: false,
-					error: `Missing required "theme-api" key in "${this.configFilePath}".`,
+					error:
+						doc["theme-ftp"] !== undefined
+							? `This workspace has FTP credentials but no Public API credentials. Run ${bin} theme authorize to add them, or use ${bin} theme ftp pull / theme ftp push instead.`
+							: `Missing required "theme-api" key in "${this.configFilePath}". Run ${bin} theme authorize first.`,
 				};
 			}
 			if (!isValidThemeApiConfig(themeApi)) {
@@ -311,7 +358,6 @@ export class ThemeWorkspaceConfigManager {
 						? { apiBaseUrl: themeApi.apiBaseUrl.trim().replace(/\/+$/, "") }
 						: {}),
 				},
-				themeManagement: "api",
 			};
 		} catch (cause) {
 			const detail = cause instanceof Error ? cause.message : String(cause);
@@ -320,5 +366,21 @@ export class ThemeWorkspaceConfigManager {
 				error: `Store configuration could not be loaded. ${detail}`,
 			};
 		}
+	}
+
+	/** Which family last pulled the local files, if it was ever recorded. */
+	readLastSync(): ThemeSyncFamily | undefined {
+		try {
+			return this.IsSet() ? this.readWorkspace().lastSync : undefined;
+		} catch {
+			// An unreadable workspace is reported by the loaders; the guard that
+			// consults this must not be the thing that fails.
+			return undefined;
+		}
+	}
+
+	/** Records the family that just wrote the local files. */
+	recordLastSync(family: ThemeSyncFamily): void {
+		this.mergeWorkspace({ lastSync: family });
 	}
 }

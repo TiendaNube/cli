@@ -10,12 +10,17 @@ export const getCliExecutableNameMock =
 	cliExecutableNameMocks.getCliExecutableNameMock;
 
 vi.mock("../../../theme-workspace-config-manager", () => ({
-	ThemeWorkspaceConfigManager: vi.fn().mockImplementation(() => ({
-		TryLoadApiConfig: () => themeApiCmdMocks.tryLoadResult,
-		mergeWorkspace: themeApiCmdMocks.mergeWorkspace,
-		IsSet: () => themeApiCmdMocks.isSet,
-		readWorkspace: () => themeApiCmdMocks.readWorkspaceReturn,
-	})),
+	// biome-ignore lint/complexity/useArrowFunction: vitest 4 constructs mocks called with `new`, and an arrow implementation throws "is not a constructor"
+	ThemeWorkspaceConfigManager: vi.fn().mockImplementation(function () {
+		return {
+			TryLoadApiConfig: () => themeApiCmdMocks.tryLoadResult,
+			mergeWorkspace: themeApiCmdMocks.mergeWorkspace,
+			IsSet: () => themeApiCmdMocks.isSet,
+			readWorkspace: () => themeApiCmdMocks.readWorkspaceReturn,
+			readLastSync: () => themeApiCmdMocks.lastSync,
+			recordLastSync: themeApiCmdMocks.recordLastSync,
+		};
+	}),
 }));
 
 vi.mock("../../theme-api-client", async () => {
@@ -24,42 +29,51 @@ vi.mock("../../theme-api-client", async () => {
 	);
 	return {
 		...actual,
-		ThemeApiClient: vi.fn().mockImplementation(() => ({
-			listInstallations: themeApiCmdMocks.listInstallations,
-			getInstallation: themeApiCmdMocks.getInstallation,
-			createInstallation: themeApiCmdMocks.createInstallation,
-			deleteInstallation: themeApiCmdMocks.deleteInstallation,
-			publishInstallation: themeApiCmdMocks.publishInstallation,
-			forkInstallation: themeApiCmdMocks.forkInstallation,
-			cloneInstallation: themeApiCmdMocks.cloneInstallation,
-			unforkInstallation: themeApiCmdMocks.unforkInstallation,
-			updateInstallation: themeApiCmdMocks.updateInstallation,
-			testUpdateInstallation: themeApiCmdMocks.testUpdateInstallation,
-			getUpdateTargets: themeApiCmdMocks.getUpdateTargets,
-			getFiles: themeApiCmdMocks.getFiles,
-			getFile: themeApiCmdMocks.getFile,
-			getFileHashes: themeApiCmdMocks.getFileHashes,
-			upsertFile: themeApiCmdMocks.upsertFile,
-			deleteFile: themeApiCmdMocks.deleteFile,
-			batchUpdateFiles: themeApiCmdMocks.batchUpdateFiles,
-		})),
+		// biome-ignore lint/complexity/useArrowFunction: vitest 4 constructs mocks called with `new`, and an arrow implementation throws "is not a constructor"
+		ThemeApiClient: vi.fn().mockImplementation(function () {
+			return {
+				listInstallations: themeApiCmdMocks.listInstallations,
+				getInstallation: themeApiCmdMocks.getInstallation,
+				createInstallation: themeApiCmdMocks.createInstallation,
+				deleteInstallation: themeApiCmdMocks.deleteInstallation,
+				publishInstallation: themeApiCmdMocks.publishInstallation,
+				forkInstallation: themeApiCmdMocks.forkInstallation,
+				cloneInstallation: themeApiCmdMocks.cloneInstallation,
+				unforkInstallation: themeApiCmdMocks.unforkInstallation,
+				updateInstallation: themeApiCmdMocks.updateInstallation,
+				testUpdateInstallation: themeApiCmdMocks.testUpdateInstallation,
+				getUpdateTargets: themeApiCmdMocks.getUpdateTargets,
+				getFiles: themeApiCmdMocks.getFiles,
+				getFile: themeApiCmdMocks.getFile,
+				getFileHashes: themeApiCmdMocks.getFileHashes,
+				upsertFile: themeApiCmdMocks.upsertFile,
+				deleteFile: themeApiCmdMocks.deleteFile,
+				batchUpdateFiles: themeApiCmdMocks.batchUpdateFiles,
+			};
+		}),
 	};
 });
 
 vi.mock("../../../../../cli-logger", () => ({
-	CliLogger: vi.fn().mockImplementation(() => ({
-		Log: themeApiCmdMocks.log,
-		Error: themeApiCmdMocks.error,
-	})),
+	// biome-ignore lint/complexity/useArrowFunction: vitest 4 constructs mocks called with `new`, and an arrow implementation throws "is not a constructor"
+	CliLogger: vi.fn().mockImplementation(function () {
+		return {
+			Log: themeApiCmdMocks.log,
+			Error: themeApiCmdMocks.error,
+		};
+	}),
 }));
 
 vi.mock("../../../../../cli-interaction", () => ({
-	CliInteraction: vi.fn().mockImplementation(() => ({
-		Confirm: themeApiCmdMocks.confirm,
-		Input: themeApiCmdMocks.input,
-		Select: themeApiCmdMocks.select,
-		Password: themeApiCmdMocks.password,
-	})),
+	// biome-ignore lint/complexity/useArrowFunction: vitest 4 constructs mocks called with `new`, and an arrow implementation throws "is not a constructor"
+	CliInteraction: vi.fn().mockImplementation(function () {
+		return {
+			Confirm: themeApiCmdMocks.confirm,
+			Input: themeApiCmdMocks.input,
+			Select: themeApiCmdMocks.select,
+			Password: themeApiCmdMocks.password,
+		};
+	}),
 }));
 
 function setTty(value: boolean): void {
@@ -94,6 +108,8 @@ export function resetThemeApiCmdMocks(): void {
 	themeApiCmdMocks.isSet = false;
 	themeApiCmdMocks.readWorkspaceReturn = {};
 	themeApiCmdMocks.mergeWorkspace.mockClear();
+	themeApiCmdMocks.recordLastSync.mockClear();
+	themeApiCmdMocks.lastSync = undefined;
 	themeApiCmdMocks.log.mockClear();
 	themeApiCmdMocks.error.mockClear();
 	themeApiCmdMocks.confirm.mockReset();
