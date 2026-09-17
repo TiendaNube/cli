@@ -4,6 +4,10 @@ import { getCliExecutableName } from "../../../../cli-executable-name";
 import { CliInteraction } from "../../../../cli-interaction";
 import { CliLogger } from "../../../../cli-logger";
 import { confirmOrAbort } from "../../../../interactivity";
+import {
+	crossFamilyForcedNotice,
+	crossFamilyPushRefusal,
+} from "../../theme-workspace-sync-origin";
 import { ThemeFtpClient } from "../theme-ftp-client";
 import type { ThemeFtpClientConfig } from "../theme-ftp-client-config";
 import { ThemeFtpConfigManager } from "../theme-ftp-config-manager";
@@ -25,10 +29,23 @@ export class ThemeFtpPushCommand {
 			);
 		}
 
+		// A workspace may hold both credential families, so the local files could
+		// have come from an API pull. Uploading those over FTP would send a
+		// sections-based tree to a classic theme.
+		const lastSync = this.config.LastSync();
+		if (!options.force) {
+			const refusal = crossFamilyPushRefusal({ target: "ftp", lastSync });
+			if (refusal !== null) {
+				throw new CliError(refusal);
+			}
+		}
+
 		const confirmed = await confirmOrAbort(
 			command,
 			this.interaction,
-			"Local files will be uploaded and files that no longer exist locally will be deleted from the FTP server. Do you want to continue?",
+			`Local files will be uploaded and files that no longer exist locally will be deleted from the FTP server.${crossFamilyForcedNotice(
+				{ target: "ftp", lastSync },
+			)} Do you want to continue?`,
 		);
 		if (!confirmed) {
 			return;

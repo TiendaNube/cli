@@ -28,7 +28,13 @@ export async function fetchAllRemoteFiles(
 	const fetchPage = async (
 		off: number,
 	): Promise<ReturnType<typeof parseGetFilesResponse>> => {
-		const raw = await client.getFiles(themeId, { offset: off, limit });
+		// parseJson=false: receive .json content as raw text (format="text") so
+		// files round-trip byte-exact to disk instead of being re-serialized.
+		const raw = await client.getFiles(themeId, {
+			offset: off,
+			limit,
+			parseJson: false,
+		});
 		return parseGetFilesResponse(raw);
 	};
 
@@ -103,7 +109,9 @@ export async function fetchRemoteContents(
 	try {
 		files.set(
 			probePath,
-			parseGetFileResponse(await client.getFile(themeId, probePath)),
+			parseGetFileResponse(
+				await client.getFile(themeId, probePath, { parseJson: false }),
+			),
 		);
 	} catch (err) {
 		if (
@@ -134,7 +142,12 @@ export async function fetchRemoteContents(
 	if (restPaths.length > 0) {
 		await mapPool(restPaths, THEME_API_MAX_PARALLEL, async (p) => {
 			try {
-				files.set(p, parseGetFileResponse(await client.getFile(themeId, p)));
+				files.set(
+					p,
+					parseGetFileResponse(
+						await client.getFile(themeId, p, { parseJson: false }),
+					),
+				);
 			} catch (err) {
 				unavailable.set(p, err instanceof Error ? err.message : String(err));
 			}

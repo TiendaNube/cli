@@ -10,6 +10,7 @@ lerna-debug.log*
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 .claude
+.overclick
 
 # Runtime data
 pids
@@ -154,3 +155,6 @@ vite.config.ts.timestamp-*
 # Operating system
 .DS_Store
 Thumbs.db
+
+# Jetbrains
+.idea

@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeApiPushCommand } from "../theme-api-push";
 import { parseWithTail, programWithThemeCommand } from "./helpers";
 import {
+	forceInteractiveTestEnv,
 	resetThemeApiCmdMocks,
 	themeApiCmdMocks,
 } from "./theme-api-command-test-mocks";
@@ -125,6 +126,62 @@ describe("ThemeApiPushCommand", () => {
 		});
 		await parseWithTail(program, ["theme", "push"]);
 		expect(themeApiCmdMocks.getInstallation).not.toHaveBeenCalled();
+	});
+
+	describe("cross-family origin", () => {
+		beforeEach(() => {
+			themeApiCmdMocks.tryLoadResult = {
+				success: true,
+				config: { publicApiToken: "t", storeId: "1", themeId: "9" },
+			};
+			themeApiCmdMocks.getInstallation.mockResolvedValue({ forked: true });
+			themeApiCmdMocks.getFileHashes.mockResolvedValue({ hashes: {} });
+			themeApiCmdMocks.batchUpdateFiles.mockResolvedValue({});
+		});
+
+		it("refuses to upload a tree that was pulled over FTP", async () => {
+			// The workspace holds both credential families, so these files may be a
+			// classic theme; uploading them over the API would overwrite a
+			// sections-based theme with the wrong kind of files.
+			themeApiCmdMocks.lastSync = "ftp";
+			const program = programWithThemeCommand((c) => {
+				new ThemeApiPushCommand().Bind(c);
+			});
+			await parseWithTail(program, ["theme", "push", "-y"]);
+			expect(themeApiCmdMocks.getInstallation).not.toHaveBeenCalled();
+			expect(themeApiCmdMocks.error).toHaveBeenCalledWith(
+				expect.stringContaining("last pulled over FTP"),
+			);
+		});
+
+		it("allows the push when the recorded origin is the API or unrecorded", async () => {
+			for (const origin of ["api", undefined] as const) {
+				themeApiCmdMocks.getInstallation.mockClear();
+				themeApiCmdMocks.lastSync = origin;
+				const program = programWithThemeCommand((c) => {
+					new ThemeApiPushCommand().Bind(c);
+				});
+				await parseWithTail(program, ["theme", "push", "-y"]);
+				expect(
+					themeApiCmdMocks.getInstallation,
+					`origin=${origin}`,
+				).toHaveBeenCalled();
+			}
+		});
+
+		it("names the mismatch in the confirmation when --force overrides it", async () => {
+			// --force unlocks the upload; it must not do so silently.
+			themeApiCmdMocks.lastSync = "ftp";
+			forceInteractiveTestEnv();
+			themeApiCmdMocks.confirm.mockResolvedValueOnce(false);
+			const program = programWithThemeCommand((c) => {
+				new ThemeApiPushCommand().Bind(c);
+			});
+			await parseWithTail(program, ["theme", "push", "--force"]);
+			expect(themeApiCmdMocks.confirm).toHaveBeenCalledWith(
+				expect.stringContaining("last pulled over FTP"),
+			);
+		});
 	});
 
 	describe("sync behavior", () => {
@@ -378,40 +435,6 @@ describe("ThemeApiPushCommand", () => {
 
 				readFileSpy.mockRestore();
 			});
-
-			it("counts non-forked JSON as unchanged when remote hash matches PHP-compatible hash", async () => {
-				// When a non-forked file was previously uploaded via CLI its hash is
-				// stored as phpJsonSerialize(content) by the backend. If raw MD5
-				// mismatches but the PHP hash matches, the file is unchanged.
-				const content = { label: "Búsqueda", url: "http://x.com/p" };
-				const rawBytes = Buffer.from(JSON.stringify(content), "utf8");
-				themeApiCmdMocks.getFileHashes.mockResolvedValue({
-					hashes: { "sections/data.json": phpMd5(content) },
-				});
-				const readFileSpy = vi
-					.spyOn(fs, "readFileSync")
-					.mockReturnValue(rawBytes);
-				readdirpMocks.readdirpPromise.mockResolvedValue([
-					{ fullPath: path.join(cwd, "sections", "data.json") },
-				]);
-
-				const program = programWithThemeCommand((c) => {
-					new ThemeApiPushCommand().Bind(c);
-				});
-				await parseWithTail(program, ["theme", "push", "-y"]);
-
-				const logs: string[] = (
-					themeApiCmdMocks.log.mock.calls as string[][]
-				).flat();
-				expect(
-					logs.some((l) => l.includes("not forked, but has changes")),
-				).toBe(false);
-				const summary = logs.find((l) => l.includes("Sync completed"));
-				expect(summary).toMatch(/unchanged: 1/);
-				expect(summary).not.toMatch(/skipped/);
-
-				readFileSpy.mockRestore();
-			});
 		});
 
 		it("skips remote-only files outside fork-allowed paths when not forked", async () => {
@@ -566,12 +589,15 @@ describe("ThemeApiPushCommand", () => {
 
 		it("skips unchanged JSON files with non-ASCII and slash content", async () => {
 			const jsonObj = { label: "Búsqueda", url: "http://x.com/p" };
+			const rawContent = JSON.stringify(jsonObj);
+			// Remote stores the MD5 of the raw pulled bytes, so identical bytes match
+			// regardless of non-ASCII or slash characters — no re-serialisation.
 			themeApiCmdMocks.getFileHashes.mockResolvedValue({
-				hashes: { "translations/es.json": phpMd5(jsonObj) },
+				hashes: { "translations/es.json": md5(rawContent) },
 			});
 			const readFileSpy = vi
 				.spyOn(fs, "readFileSync")
-				.mockReturnValue(Buffer.from(JSON.stringify(jsonObj), "utf8"));
+				.mockReturnValue(Buffer.from(rawContent, "utf8"));
 			readdirpMocks.readdirpPromise.mockResolvedValue([
 				{ fullPath: path.join(cwd, "translations", "es.json") },
 			]);

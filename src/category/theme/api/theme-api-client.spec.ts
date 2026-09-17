@@ -274,6 +274,63 @@ describe("ThemeApiClient.getFile", () => {
 			status: 405,
 		});
 	});
+
+	it("appends parse-json=false when requested", async () => {
+		fetchMock.mockResolvedValueOnce(
+			jsonResponse(200, { path: "templates/home.json", format: "text" }),
+		);
+		const client = buildClient();
+
+		await client.getFile("1", "templates/home.json", { parseJson: false });
+		const [calledUrl] = fetchMock.mock.calls[0] as [string, FetchInit];
+		expect(calledUrl).toBe(
+			"https://api.example.com/v1/42/theme-installations/1/files/templates/home.json?parse-json=false",
+		);
+	});
+
+	it("omits parse-json by default", async () => {
+		fetchMock.mockResolvedValueOnce(
+			jsonResponse(200, { path: "templates/home.json", format: "json" }),
+		);
+		const client = buildClient();
+
+		await client.getFile("1", "templates/home.json");
+		const [calledUrl] = fetchMock.mock.calls[0] as [string, FetchInit];
+		expect(calledUrl).not.toContain("parse-json");
+	});
+});
+
+describe("ThemeApiClient.getFiles URL", () => {
+	let fetchMock: ReturnType<typeof vi.fn>;
+
+	beforeEach(() => {
+		fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	it("appends parse-json=false alongside pagination when requested", async () => {
+		fetchMock.mockResolvedValueOnce(jsonResponse(200, { files: [], total: 0 }));
+		const client = buildClient();
+
+		await client.getFiles("1", { offset: 50, limit: 50, parseJson: false });
+		const [calledUrl] = fetchMock.mock.calls[0] as [string, FetchInit];
+		expect(calledUrl).toContain("parse-json=false");
+		expect(calledUrl).toContain("offset=50");
+		expect(calledUrl).toContain("limit=50");
+	});
+
+	it("omits parse-json by default", async () => {
+		fetchMock.mockResolvedValueOnce(jsonResponse(200, { files: [], total: 0 }));
+		const client = buildClient();
+
+		await client.getFiles("1");
+		const [calledUrl] = fetchMock.mock.calls[0] as [string, FetchInit];
+		expect(calledUrl).not.toContain("parse-json");
+	});
 });
 
 describe("ThemeApiClient.deleteFile", () => {

@@ -8,6 +8,10 @@ import { confirmOrAbort } from "../../../../interactivity";
 import { resolveThemeIdOrFail } from "../../theme-id-resolver";
 import { ThemeWorkspaceConfigManager } from "../../theme-workspace-config-manager";
 import {
+	crossFamilyForcedNotice,
+	crossFamilyPushRefusal,
+} from "../../theme-workspace-sync-origin";
+import {
 	addHiddenThemeApiHeaderOption,
 	addHiddenThemeApiUrlOption,
 	addThemeApiTokenOption,
@@ -71,10 +75,25 @@ export class ThemeApiPushCommand {
 			getClient: () => client,
 		});
 
+		// A workspace may hold both credential families, so the local files could
+		// have come from an FTP pull. Uploading those over the Public API would send
+		// a classic theme's tree to a sections-based one.
+		const lastSync = loaded.ephemeral
+			? undefined
+			: this.workspace.readLastSync();
+		if (!options.force) {
+			const refusal = crossFamilyPushRefusal({ target: "api", lastSync });
+			if (refusal !== null) {
+				throw new CliError(refusal);
+			}
+		}
+
 		const confirmed = await confirmOrAbort(
 			command,
 			this.interaction,
-			"Files on the theme will be overwritten, and files that no longer exist locally will be deleted. Do you want to continue?",
+			`Files on the theme will be overwritten, and files that no longer exist locally will be deleted.${crossFamilyForcedNotice(
+				{ target: "api", lastSync },
+			)} Do you want to continue?`,
 		);
 		if (!confirmed) {
 			return;

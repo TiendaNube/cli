@@ -57,4 +57,34 @@ describe("ThemeFtpWatchCommand", () => {
 		await parseWithTail(program, ["ftp", "watch", "--no-browser"]);
 		expect(chokidarWatch).toHaveBeenCalled();
 	});
+
+	it("refuses to watch a tree that was pulled over the API", async () => {
+		// A watch uploads on every save, so a cross-family watch is a continuous
+		// cross-family push. There is no --force here by design.
+		ftpCmdMocks.isSet = true;
+		ftpCmdMocks.tryLoadResult = {
+			success: true,
+			config: {
+				ftp: {
+					ftpServer: "s",
+					ftpUsername: "u",
+					ftpPassword: "p",
+					verbose: false,
+				},
+				storeUrl: "https://shop.example.com",
+			},
+		};
+		ftpCmdMocks.lastSync = "api";
+		const program = programWithFtpSubcommand((c) => {
+			new ThemeFtpWatchCommand().Bind(c);
+		});
+		await parseWithTail(program, ["ftp", "watch", "--no-browser"]);
+		expect(chokidarWatch).not.toHaveBeenCalled();
+		expect(ftpCmdMocks.error).toHaveBeenCalledWith(
+			expect.stringContaining("on every save"),
+		);
+		expect(ftpCmdMocks.error).not.toHaveBeenCalledWith(
+			expect.stringContaining("--force"),
+		);
+	});
 });

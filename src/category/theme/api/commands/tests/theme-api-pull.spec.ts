@@ -81,6 +81,8 @@ describe("ThemeApiPullCommand", () => {
 			"-y",
 		]);
 		expect(themeApiCmdMocks.mergeWorkspace).toHaveBeenCalledWith({
+			// Records the origin so a later FTP push refuses this tree.
+			lastSync: "api",
 			"theme-api": {
 				publicApiToken: "t",
 				storeId: "1",
@@ -122,6 +124,7 @@ describe("ThemeApiPullCommand", () => {
 		expect(themeApiCmdMocks.getFiles).toHaveBeenCalledWith("4542075", {
 			offset: 0,
 			limit: THEME_API_PULL_PAGE_SIZE,
+			parseJson: false,
 		});
 		stderrSpy.mockRestore();
 		mkdirSpy.mockRestore();
@@ -271,6 +274,7 @@ describe("ThemeApiPullCommand", () => {
 		expect(themeApiCmdMocks.getFiles).toHaveBeenCalledWith("555", {
 			offset: 0,
 			limit: THEME_API_PULL_PAGE_SIZE,
+			parseJson: false,
 		});
 
 		mkdirSpy.mockRestore();
@@ -372,18 +376,22 @@ describe("ThemeApiPullCommand", () => {
 		expect(themeApiCmdMocks.getFiles).toHaveBeenNthCalledWith(1, "4542075", {
 			offset: 0,
 			limit: pageSize,
+			parseJson: false,
 		});
 		expect(themeApiCmdMocks.getFiles).toHaveBeenNthCalledWith(2, "4542075", {
 			offset: pageSize,
 			limit: pageSize,
+			parseJson: false,
 		});
 		expect(themeApiCmdMocks.getFiles).toHaveBeenNthCalledWith(3, "4542075", {
 			offset: pageSize * 2,
 			limit: pageSize,
+			parseJson: false,
 		});
 		expect(themeApiCmdMocks.getFiles).toHaveBeenNthCalledWith(4, "4542075", {
 			offset: pageSize * 3,
 			limit: pageSize,
+			parseJson: false,
 		});
 		// All `total` file writes + manifest.json
 		expect(writeSpy).toHaveBeenCalledTimes(total + 1);

@@ -7,11 +7,14 @@ const interactionMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("./cli-interaction", () => ({
-	CliInteraction: vi.fn().mockImplementation(() => ({
-		Input: interactionMocks.Input,
-		Password: interactionMocks.Password,
-		Confirm: vi.fn(),
-	})),
+	// biome-ignore lint/complexity/useArrowFunction: vitest 4 constructs mocks called with `new`, and an arrow implementation throws "is not a constructor"
+	CliInteraction: vi.fn().mockImplementation(function () {
+		return {
+			Input: interactionMocks.Input,
+			Password: interactionMocks.Password,
+			Confirm: vi.fn(),
+		};
+	}),
 }));
 
 import {

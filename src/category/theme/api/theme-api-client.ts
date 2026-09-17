@@ -487,7 +487,12 @@ export class ThemeApiClient {
 
 	async getFiles(
 		installationId: string,
-		options?: { fileTypes?: string[]; offset?: number; limit?: number },
+		options?: {
+			fileTypes?: string[];
+			offset?: number;
+			limit?: number;
+			parseJson?: boolean;
+		},
 	): Promise<unknown> {
 		const parts: string[] = [];
 		for (const t of options?.fileTypes ?? []) {
@@ -499,6 +504,11 @@ export class ThemeApiClient {
 		if (options?.limit !== undefined) {
 			parts.push(`limit=${options.limit}`);
 		}
+		// parse-json=false asks the API for raw file text (.json returned as text
+		// with format="text") instead of parsed JSON. Default (omitted) is true.
+		if (options?.parseJson === false) {
+			parts.push("parse-json=false");
+		}
 		const qs = parts.join("&");
 		const url = `${this.installationUrl(installationId)}/files${qs ? `?${qs}` : ""}`;
 		this.log(`GET ${url}`);
@@ -509,9 +519,15 @@ export class ThemeApiClient {
 	 * Single-file read. Not every API version exposes it — callers should be
 	 * ready to fall back to the paginated `getFiles`.
 	 */
-	async getFile(installationId: string, filePath: string): Promise<unknown> {
+	async getFile(
+		installationId: string,
+		filePath: string,
+		options?: { parseJson?: boolean },
+	): Promise<unknown> {
 		const encoded = encodeFilePathForUrl(filePath);
-		const url = `${this.installationUrl(installationId)}/files/${encoded}`;
+		// parse-json=false asks for the raw file text (see getFiles). Default is true.
+		const qs = options?.parseJson === false ? "?parse-json=false" : "";
+		const url = `${this.installationUrl(installationId)}/files/${encoded}${qs}`;
 		this.log(`GET ${url}`);
 		return this.requestJson(`GET theme file ${filePath}`, url, {
 			method: "GET",

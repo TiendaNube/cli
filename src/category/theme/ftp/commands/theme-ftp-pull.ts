@@ -48,6 +48,9 @@ export class ThemeFtpPullCommand {
 		const client = new ThemeFtpClient(ftpConfig);
 		const result = await client.DownloadAll();
 		if (result.success) {
+			// Records the origin so an API push refuses to upload these files to a
+			// sections-based theme.
+			this.config.MarkPulled();
 			this.logger.Log("Download completed");
 		} else {
 			throw new CliError(`Download failed: ${result.errorMessage}`);

@@ -9,6 +9,7 @@ import { getCliExecutableName } from "../../../../cli-executable-name";
 import { CliLogger } from "../../../../cli-logger";
 import { resolveThemeIdOrFail } from "../../theme-id-resolver";
 import { ThemeWorkspaceConfigManager } from "../../theme-workspace-config-manager";
+import { crossFamilyWatchRefusal } from "../../theme-workspace-sync-origin";
 import {
 	addHiddenThemeApiHeaderOption,
 	addHiddenThemeApiUrlOption,
@@ -149,6 +150,20 @@ export class ThemeApiWatchCommand {
 			config,
 			getClient: () => client,
 		});
+
+		// Checked once at startup: a watch pushes on every save, so a cross-family
+		// watch is the same hazard as a cross-family push, running continuously.
+		// There is no --force here on purpose — for a long-lived loop, refusing with
+		// an actionable message beats offering an escape hatch.
+		if (!loaded.ephemeral) {
+			const refusal = crossFamilyWatchRefusal({
+				target: "api",
+				lastSync: this.workspace.readLastSync(),
+			});
+			if (refusal !== null) {
+				throw new CliError(refusal);
+			}
+		}
 
 		const installationMeta: unknown = await client.getInstallation(themeId);
 		const forked = isInstallationForked(installationMeta);
