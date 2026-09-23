@@ -22,10 +22,7 @@ import { resolveApiCredentials } from "../theme-api-credentials";
 import { warnDeprecatedOption } from "../theme-api-deprecated-options";
 import { ThemeApiError } from "../theme-api-error";
 import { resolveExtraHeadersFromCli } from "../theme-api-extra-headers";
-import {
-	getThemeFileFormat,
-	readThemeFileContent,
-} from "../theme-api-file-format";
+import { readThemeFileContent } from "../theme-api-file-format";
 import {
 	canPushRelativePathWhenNotForked,
 	isInstallationForked,
@@ -245,9 +242,8 @@ export class ThemeApiWatchCommand {
 			if (stats.size === 0) {
 				return;
 			}
-			const format = getThemeFileFormat(norm);
 			try {
-				const content = readThemeFileContent(filePath, format);
+				const { format, content } = readThemeFileContent(filePath, norm);
 				this.logger.Log(`${label}: ${norm}`);
 				await client.upsertFile(themeId, norm, content, format);
 				await reloadStorefront();
