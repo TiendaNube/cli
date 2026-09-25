@@ -19,17 +19,42 @@ export function getThemeFileFormat(filePath: string): ThemeFileFormat {
 	return "base64";
 }
 
+export type ThemeFileContent = {
+	format: ThemeFileFormat;
+	content: unknown;
+};
+
+/**
+ * Read a file as the payload to upload it with.
+ *
+ * `.json` is sent as raw text rather than a parsed value: the API re-serializes
+ * whatever it decodes, which rewrites the bytes and the stored MD5 and leaves
+ * the file looking modified on every later diff. Parsing only rejects bad JSON.
+ */
 export function readThemeFileContent(
 	absolutePath: string,
-	format: ThemeFileFormat,
-): unknown {
+	relativePath: string,
+): ThemeFileContent {
+	const format = getThemeFileFormat(relativePath);
+
 	switch (format) {
-		case "json":
-			return JSON.parse(fs.readFileSync(absolutePath, "utf8")) as unknown;
+		case "json": {
+			const raw = fs.readFileSync(absolutePath, "utf8");
+			try {
+				JSON.parse(raw);
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : String(err);
+				throw new Error(`Invalid JSON: ${msg}`);
+			}
+			return { format: "text", content: raw };
+		}
 		case "text":
-			return fs.readFileSync(absolutePath, "utf8");
+			return { format, content: fs.readFileSync(absolutePath, "utf8") };
 		case "base64":
-			return fs.readFileSync(absolutePath).toString("base64");
+			return {
+				format,
+				content: fs.readFileSync(absolutePath).toString("base64"),
+			};
 		default: {
 			const _exhaustive: never = format;
 			return _exhaustive;

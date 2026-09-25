@@ -8,10 +8,7 @@ import {
 	type ThemeDiffResult,
 	computeThemeDiff,
 } from "./theme-api-diff";
-import {
-	getThemeFileFormat,
-	readThemeFileContent,
-} from "./theme-api-file-format";
+import { readThemeFileContent } from "./theme-api-file-format";
 import {
 	canPushRelativePathWhenNotForked,
 	isInstallationForked,
@@ -187,8 +184,7 @@ export async function buildThemeDiffPlan(
 				readFailCount += 1;
 				continue;
 			}
-			const format = getThemeFileFormat(norm);
-			const content = readThemeFileContent(full, format);
+			const { format, content } = readThemeFileContent(full, norm);
 			// Hash the raw bytes as pulled; the remote stores the same raw-byte MD5,
 			// so identical content never shows as modified (no JSON re-serialisation).
 			const hash = crypto.createHash("md5").update(rawBytes).digest("hex");
