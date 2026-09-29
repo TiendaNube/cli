@@ -155,7 +155,7 @@ export class ThemeApiAuthorizeCommand {
 		this.logger.Log("After you sign in, copy the token from the page.");
 
 		try {
-			const pasted = await this.interaction.Input("Paste your token:");
+			const pasted = await this.interaction.Password("Paste your token:");
 			const decoded = decodeCliThemeAuthToken(pasted ?? "");
 			if (!decoded.ok) {
 				throw new CliError(decoded.message);

@@ -3,6 +3,7 @@ import { CliError, runAction } from "../../../../cli-action";
 import { CliInteraction } from "../../../../cli-interaction";
 import { CliLogger } from "../../../../cli-logger";
 import { confirmOrAbort, isInteractive } from "../../../../interactivity";
+import { writeJsonOutput } from "../../../../json-output";
 import { resolveThemeIdOrFail } from "../../theme-id-resolver";
 import {
 	formatThemeLabel,
@@ -102,7 +103,7 @@ export class ThemeApiInstallationUpdateCommand {
 
 		if (options.dryRun === true) {
 			if (options.json) {
-				process.stdout.write(
+				writeJsonOutput(
 					`${JSON.stringify(this.reportAsJson(themeId, report), null, 2)}\n`,
 				);
 				return;
@@ -152,7 +153,7 @@ export class ThemeApiInstallationUpdateCommand {
 		const result = await client.updateInstallation(themeId, target, title);
 
 		if (options.json) {
-			process.stdout.write(`${JSON.stringify(result ?? {}, null, 2)}\n`);
+			writeJsonOutput(`${JSON.stringify(result ?? {}, null, 2)}\n`);
 			return;
 		}
 		const newId = extractThemeIdFromResponse(result);

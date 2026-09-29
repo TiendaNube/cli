@@ -71,7 +71,7 @@ function isValidThemeApiConfig(value: unknown): value is ThemeApiConfig {
 }
 
 /**
- * Pre-EXT-518 `.nuvem` files persisted the theme reference as `installationId`.
+ * Older `.nuvem` files persisted the theme reference as `installationId`.
  * Surface it as `themeId` on read so existing workspaces keep working — the
  * next `writeWorkspace` re-persists with only the new key.
  */

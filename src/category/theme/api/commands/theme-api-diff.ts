@@ -3,6 +3,7 @@ import type { Command } from "commander";
 import { runAction } from "../../../../cli-action";
 import { CliError } from "../../../../cli-action";
 import { CliLogger } from "../../../../cli-logger";
+import { writeJsonOutput } from "../../../../json-output";
 import { resolveThemeIdOrFail } from "../../theme-id-resolver";
 import { ThemeWorkspaceConfigManager } from "../../theme-workspace-config-manager";
 import {
@@ -275,7 +276,7 @@ export class ThemeApiDiffCommand {
 		};
 
 		if (options.json) {
-			process.stdout.write(
+			writeJsonOutput(
 				formatThemeDiffJson(report, { detailed: options.detailed }),
 			);
 			return;

@@ -4,6 +4,7 @@ import { CliError, runAction } from "../../../../cli-action";
 import { CliInteraction } from "../../../../cli-interaction";
 import { CliLogger } from "../../../../cli-logger";
 import { assertConfirmable, confirmOrAbort } from "../../../../interactivity";
+import { writeJsonOutput } from "../../../../json-output";
 import { resolveThemeIdOrFail } from "../../theme-id-resolver";
 import {
 	formatThemeLabel,
@@ -108,7 +109,7 @@ export class ThemeApiInstallationUnforkCommand {
 
 		const result = await client.unforkInstallation(themeId, title);
 		if (options.json) {
-			process.stdout.write(`${JSON.stringify(result ?? {}, null, 2)}\n`);
+			writeJsonOutput(`${JSON.stringify(result ?? {}, null, 2)}\n`);
 			return;
 		}
 		const newId = extractThemeIdFromResponse(result);

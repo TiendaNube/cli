@@ -41,6 +41,7 @@ vi.mock("../../../cli-logger", () => ({
 	CliLogger: class {
 		Log = vi.fn();
 		Error = vi.fn();
+		Warn = vi.fn();
 	},
 }));
 
@@ -324,7 +325,7 @@ describe("ThemeFtpClient needsUpload", () => {
 	};
 
 	it("skips upload when local file has size 0, even if remote size differs", async () => {
-		const { stat } = setup("");
+		const { filePath, stat } = setup("");
 		const diff = await makeDiff({
 			type: 1,
 			name: "style.css",
@@ -332,7 +333,8 @@ describe("ThemeFtpClient needsUpload", () => {
 			modifiedAt: new Date(stat.mtimeMs - 5000),
 		});
 		expect(diff.toUpdate).toHaveLength(0);
-		expect(diff.unchangedCount).toBe(1);
+		expect(diff.skippedEmpty).toEqual([filePath]);
+		expect(diff.unchangedCount).toBe(0);
 	});
 
 	it("marks file for upload when local and remote sizes differ", async () => {
@@ -618,5 +620,183 @@ describe("ThemeFtpClient delete tolerance", () => {
 		);
 		const result = await new ThemeFtpClient(baseConfig).SyncAll();
 		expect(result.success).toBe(false);
+	});
+});
+
+describe("ThemeFtpClient ComputeDiff stdout discipline", () => {
+	let tmpDir = "";
+	const originalCwd = process.cwd();
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+		ftpMocks.access.mockResolvedValue(undefined);
+		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "theme-ftp-notice-"));
+		process.chdir(tmpDir);
+		readdirMocks.readdirpPromise.mockResolvedValue([]);
+		// A nested remote tree, because the per-directory "scanning" line is emitted
+		// once per directory and was the writer that actually broke --json. A
+		// single-level fixture would pass while the real command failed.
+		ftpMocks.list.mockImplementation(async (dir: string) =>
+			dir === "/"
+				? [{ type: 2, name: "snipplets", size: 0, modifiedAt: new Date() }]
+				: [{ type: 1, name: "card.tpl", size: 4, modifiedAt: new Date() }],
+		);
+	});
+
+	afterEach(() => {
+		process.chdir(originalCwd);
+		fs.rmSync(tmpDir, { recursive: true, force: true });
+	});
+
+	it("routes every progress line through onNotice, writing nothing itself", async () => {
+		const client = new ThemeFtpClient(baseConfig);
+		const seen: string[] = [];
+		const result = await client.ComputeDiff(false, {
+			onNotice: (m) => seen.push(m),
+		});
+		expect(result.success).toBe(true);
+		// Both writers: the fetch banner and the recursive directory scan.
+		expect(seen.some((m) => m.includes("Fetching remote files"))).toBe(true);
+		expect(seen.some((m) => m.includes("scanning /snipplets/"))).toBe(true);
+		const logger = (
+			client as unknown as { logger: { Log: ReturnType<typeof vi.fn> } }
+		).logger;
+		expect(logger.Log).not.toHaveBeenCalled();
+	});
+
+	it("still narrates through the logger when no override is given", async () => {
+		const client = new ThemeFtpClient(baseConfig);
+		await client.ComputeDiff();
+		const logger = (
+			client as unknown as { logger: { Log: ReturnType<typeof vi.fn> } }
+		).logger;
+		expect(logger.Log).toHaveBeenCalled();
+	});
+});
+
+describe("ThemeFtpClient SyncAll diff reuse", () => {
+	let tmpDir = "";
+	const originalCwd = process.cwd();
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+		ftpMocks.access.mockResolvedValue(undefined);
+		ftpMocks.remove.mockResolvedValue(undefined);
+		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "theme-ftp-reuse-"));
+		process.chdir(tmpDir);
+		readdirMocks.readdirpPromise.mockResolvedValue([]);
+		ftpMocks.list.mockResolvedValue([
+			{ type: 1, name: "gone.css", size: 5, modifiedAt: new Date() },
+		]);
+	});
+
+	afterEach(() => {
+		process.chdir(originalCwd);
+		fs.rmSync(tmpDir, { recursive: true, force: true });
+	});
+
+	it("does not list the remote again when handed a precomputed diff", async () => {
+		// The push computes the diff to build its confirmation; without reuse the
+		// remote would be walked twice per push.
+		const client = new ThemeFtpClient(baseConfig);
+		const diff = await client.ComputeDiff(false, { onNotice: () => {} });
+		const listsAfterDiff = ftpMocks.list.mock.calls.length;
+		expect(listsAfterDiff).toBeGreaterThan(0);
+
+		const result = await client.SyncAll(false, diff);
+		expect(result.success).toBe(true);
+		expect(ftpMocks.list.mock.calls.length).toBe(listsAfterDiff);
+	});
+
+	it("lists the remote itself when no diff is provided", async () => {
+		// The --force path: no pre-flight ran, so SyncAll must do its own listing.
+		const client = new ThemeFtpClient(baseConfig);
+		const result = await client.SyncAll(true);
+		expect(result.success).toBe(true);
+		expect(ftpMocks.list.mock.calls.length).toBeGreaterThan(0);
+	});
+});
+
+describe("ThemeFtpClient ComputeDiff empty files", () => {
+	let tmpDir = "";
+	const originalCwd = process.cwd();
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+		ftpMocks.access.mockResolvedValue(undefined);
+		tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "theme-ftp-empty-"));
+		process.chdir(tmpDir);
+	});
+
+	afterEach(() => {
+		process.chdir(originalCwd);
+		fs.rmSync(tmpDir, { recursive: true, force: true });
+	});
+
+	it("keeps zero-byte files out of the upload counts", async () => {
+		// Upload skips them, so counting one as "to add" would overstate the push
+		// confirmation.
+		const empty = path.join(tmpDir, "blank.css");
+		const real = path.join(tmpDir, "real.css");
+		fs.writeFileSync(empty, "", "utf8");
+		fs.writeFileSync(real, "body{}", "utf8");
+		ftpMocks.list.mockResolvedValue([]);
+		readdirMocks.readdirpPromise.mockResolvedValue([
+			{ fullPath: empty },
+			{ fullPath: real },
+		]);
+
+		const diff = await new ThemeFtpClient(baseConfig).ComputeDiff(false, {
+			onNotice: () => {},
+		});
+
+		expect(diff).toMatchObject({
+			success: true,
+			toCreate: [real],
+			skippedEmpty: [empty],
+		});
+	});
+
+	it.each([false, true])(
+		"reports an emptied remote file as skipped (force=%s)",
+		async (force) => {
+			const empty = path.join(tmpDir, "blank.css");
+			fs.writeFileSync(empty, "", "utf8");
+			ftpMocks.list.mockResolvedValue([
+				{ type: 1, name: "blank.css", size: 5, modifiedAt: new Date() },
+			]);
+			readdirMocks.readdirpPromise.mockResolvedValue([{ fullPath: empty }]);
+
+			const diff = await new ThemeFtpClient(baseConfig).ComputeDiff(force, {
+				onNotice: () => {},
+			});
+
+			expect(diff).toMatchObject({
+				success: true,
+				toUpdate: [],
+				skippedEmpty: [empty],
+				toDelete: [],
+				unchangedCount: 0,
+			});
+		},
+	);
+
+	it("treats a file empty on both sides as unchanged", async () => {
+		const empty = path.join(tmpDir, "blank.css");
+		fs.writeFileSync(empty, "", "utf8");
+		ftpMocks.list.mockResolvedValue([
+			{ type: 1, name: "blank.css", size: 0, modifiedAt: new Date(0) },
+		]);
+		readdirMocks.readdirpPromise.mockResolvedValue([{ fullPath: empty }]);
+
+		const diff = await new ThemeFtpClient(baseConfig).ComputeDiff(false, {
+			onNotice: () => {},
+		});
+
+		expect(diff).toMatchObject({
+			success: true,
+			skippedEmpty: [],
+			unchangedCount: 1,
+		});
 	});
 });

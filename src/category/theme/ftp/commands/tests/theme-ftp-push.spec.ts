@@ -62,9 +62,196 @@ describe("ThemeFtpPushCommand", () => {
 			new ThemeFtpPushCommand().Bind(c);
 		});
 		await parseWithTail(program, ["ftp", "push", "-y"]);
-		expect(ftpCmdMocks.syncAll).toHaveBeenCalledWith(false);
+		// The diff computed for the confirmation is handed to SyncAll so the remote
+		// tree is listed once rather than twice.
+		expect(ftpCmdMocks.computeDiff).toHaveBeenCalledWith(false);
+		expect(ftpCmdMocks.syncAll).toHaveBeenCalledWith(
+			false,
+			await ftpCmdMocks.computeDiff.mock.results[0]?.value,
+		);
 		expect(ftpCmdMocks.log).toHaveBeenCalledWith(
 			"Starting sync with FTP server",
+		);
+	});
+
+	it("states the live target and the counts in the confirmation", async () => {
+		ftpCmdMocks.isSet = true;
+		forceInteractiveTestEnv();
+		ftpCmdMocks.tryLoadResult = {
+			success: true,
+			config: {
+				ftp: {
+					ftpServer: "s",
+					ftpUsername: "u",
+					ftpPassword: "p",
+					verbose: false,
+				},
+				storeUrl: "https://shop.example.com",
+			},
+		};
+		ftpCmdMocks.computeDiff.mockResolvedValue({
+			success: true,
+			toCreate: ["/w/a.tpl"],
+			toUpdate: ["/w/b.tpl", "/w/c.tpl"],
+			toDelete: ["/gone.tpl"],
+			skippedEmpty: [],
+			unchangedCount: 9,
+		});
+		ftpCmdMocks.confirm.mockResolvedValueOnce(false);
+		const program = programWithFtpSubcommand((c) => {
+			new ThemeFtpPushCommand().Bind(c);
+		});
+		await parseWithTail(program, ["ftp", "push"]);
+		const prompt = String(ftpCmdMocks.confirm.mock.calls[0]?.[0] ?? "");
+		// A blind "are you sure?" was the whole problem: FTP writes to the published
+		// theme with no preview, so the counts have to be in the question itself.
+		expect(prompt).toMatch(/published in your store/);
+		expect(prompt).toMatch(/shoppers see it immediately/);
+		expect(prompt).toContain("1 file(s) to add");
+		expect(prompt).toContain("2 to modify");
+		expect(prompt).toContain("1 to delete");
+		expect(ftpCmdMocks.syncAll).not.toHaveBeenCalled();
+	});
+
+	it("logs the counts under -y, where the confirmation never renders", async () => {
+		ftpCmdMocks.isSet = true;
+		ftpCmdMocks.tryLoadResult = {
+			success: true,
+			config: {
+				ftp: {
+					ftpServer: "s",
+					ftpUsername: "u",
+					ftpPassword: "p",
+					verbose: false,
+				},
+				storeUrl: "https://shop.example.com",
+			},
+		};
+		ftpCmdMocks.computeDiff.mockResolvedValue({
+			success: true,
+			toCreate: [],
+			toUpdate: ["/w/a.tpl"],
+			toDelete: ["/gone.tpl", "/gone2.tpl"],
+			skippedEmpty: [],
+			unchangedCount: 0,
+		});
+		ftpCmdMocks.syncAll.mockResolvedValue({ success: true });
+		const program = programWithFtpSubcommand((c) => {
+			new ThemeFtpPushCommand().Bind(c);
+		});
+		await parseWithTail(program, ["ftp", "push", "-y"]);
+		expect(ftpCmdMocks.log).toHaveBeenCalledWith(
+			"Pending changes: 0 file(s) to add, 1 to modify, and 2 to delete from the remote theme.",
+		);
+	});
+
+	it("says the summary is skipped when --force asks for no review", async () => {
+		// --force is an explicit "upload everything, do not tell me what changes",
+		// so the prompt must not pretend a change set was reviewed.
+		ftpCmdMocks.isSet = true;
+		forceInteractiveTestEnv();
+		ftpCmdMocks.tryLoadResult = {
+			success: true,
+			config: {
+				ftp: {
+					ftpServer: "s",
+					ftpUsername: "u",
+					ftpPassword: "p",
+					verbose: false,
+				},
+				storeUrl: "https://shop.example.com",
+			},
+		};
+		ftpCmdMocks.confirm.mockResolvedValueOnce(false);
+		const program = programWithFtpSubcommand((c) => {
+			new ThemeFtpPushCommand().Bind(c);
+		});
+		await parseWithTail(program, ["ftp", "push", "--force"]);
+		const prompt = String(ftpCmdMocks.confirm.mock.calls[0]?.[0] ?? "");
+		expect(prompt).toMatch(/change summary is skipped/);
+		expect(prompt).toMatch(/published in your store/);
+		expect(prompt).not.toMatch(/file\(s\) to add/);
+		expect(ftpCmdMocks.computeDiff).not.toHaveBeenCalled();
+	});
+
+	it("logs nothing about pending changes when --force skips the diff", async () => {
+		ftpCmdMocks.isSet = true;
+		ftpCmdMocks.tryLoadResult = {
+			success: true,
+			config: {
+				ftp: {
+					ftpServer: "s",
+					ftpUsername: "u",
+					ftpPassword: "p",
+					verbose: false,
+				},
+				storeUrl: "https://shop.example.com",
+			},
+		};
+		ftpCmdMocks.syncAll.mockResolvedValue({ success: true });
+		const program = programWithFtpSubcommand((c) => {
+			new ThemeFtpPushCommand().Bind(c);
+		});
+		await parseWithTail(program, ["ftp", "push", "-y", "--force"]);
+		expect(ftpCmdMocks.log).not.toHaveBeenCalledWith(
+			expect.stringContaining("Pending changes:"),
+		);
+	});
+
+	it("does not repeat the counts in the log when it will ask", async () => {
+		// Interactive runs read them in the prompt; logging too would double it.
+		ftpCmdMocks.isSet = true;
+		forceInteractiveTestEnv();
+		ftpCmdMocks.tryLoadResult = {
+			success: true,
+			config: {
+				ftp: {
+					ftpServer: "s",
+					ftpUsername: "u",
+					ftpPassword: "p",
+					verbose: false,
+				},
+				storeUrl: "https://shop.example.com",
+			},
+		};
+		ftpCmdMocks.confirm.mockResolvedValueOnce(false);
+		const program = programWithFtpSubcommand((c) => {
+			new ThemeFtpPushCommand().Bind(c);
+		});
+		await parseWithTail(program, ["ftp", "push"]);
+		expect(ftpCmdMocks.log).not.toHaveBeenCalledWith(
+			expect.stringContaining("Pending changes:"),
+		);
+	});
+
+	it("aborts without asking when the pre-flight diff fails", async () => {
+		// Asking about work whose scope is unknown would be worse than failing.
+		ftpCmdMocks.isSet = true;
+		forceInteractiveTestEnv();
+		ftpCmdMocks.tryLoadResult = {
+			success: true,
+			config: {
+				ftp: {
+					ftpServer: "s",
+					ftpUsername: "u",
+					ftpPassword: "p",
+					verbose: false,
+				},
+				storeUrl: "https://shop.example.com",
+			},
+		};
+		ftpCmdMocks.computeDiff.mockResolvedValue({
+			success: false,
+			errorMessage: "530 Login incorrect",
+		});
+		const program = programWithFtpSubcommand((c) => {
+			new ThemeFtpPushCommand().Bind(c);
+		});
+		await parseWithTail(program, ["ftp", "push"]);
+		expect(ftpCmdMocks.confirm).not.toHaveBeenCalled();
+		expect(ftpCmdMocks.syncAll).not.toHaveBeenCalled();
+		expect(ftpCmdMocks.error).toHaveBeenCalledWith(
+			"Sync failed: 530 Login incorrect",
 		);
 	});
 
@@ -87,7 +274,10 @@ describe("ThemeFtpPushCommand", () => {
 			new ThemeFtpPushCommand().Bind(c);
 		});
 		await parseWithTail(program, ["ftp", "push", "-y", "--force"]);
-		expect(ftpCmdMocks.syncAll).toHaveBeenCalledWith(true);
+		// --force opts out of the pre-flight entirely, so SyncAll gets no
+		// precomputed diff and does its own listing.
+		expect(ftpCmdMocks.computeDiff).not.toHaveBeenCalled();
+		expect(ftpCmdMocks.syncAll).toHaveBeenCalledWith(true, undefined);
 		expect(ftpCmdMocks.log).toHaveBeenCalledWith(
 			"Starting sync with FTP server (--force: uploading all files)",
 		);
@@ -96,6 +286,20 @@ describe("ThemeFtpPushCommand", () => {
 	it("shows confirmation prompt when --force is used without -y", async () => {
 		ftpCmdMocks.isSet = true;
 		forceInteractiveTestEnv();
+		// The config is loaded before the confirmation now, so an unloadable
+		// workspace fails before asking rather than after.
+		ftpCmdMocks.tryLoadResult = {
+			success: true,
+			config: {
+				ftp: {
+					ftpServer: "s",
+					ftpUsername: "u",
+					ftpPassword: "p",
+					verbose: false,
+				},
+				storeUrl: "https://shop.example.com",
+			},
+		};
 		ftpCmdMocks.confirm.mockResolvedValueOnce(false);
 		const program = programWithFtpSubcommand((c) => {
 			new ThemeFtpPushCommand().Bind(c);

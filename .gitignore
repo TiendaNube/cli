@@ -9,8 +9,14 @@ lerna-debug.log*
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
-.claude
+# Claude Code: track shared docs and commands; keep local machine state out
+.claude/*
+!.claude/docs/
+!.claude/commands/
 .overclick
+
+# Release notes draft: published as the GitHub Release body, never committed
+RELEASE_NOTES.md
 
 # Runtime data
 pids

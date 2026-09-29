@@ -4,6 +4,7 @@ import { CliError, runAction } from "../../../../cli-action";
 import { CliInteraction } from "../../../../cli-interaction";
 import { CliLogger } from "../../../../cli-logger";
 import { confirmOrAbort } from "../../../../interactivity";
+import { writeJsonOutput } from "../../../../json-output";
 import { resolveThemeIdOrFail } from "../../theme-id-resolver";
 import { formatThemeLabel } from "../../theme-title-resolver";
 import { ThemeWorkspaceConfigManager } from "../../theme-workspace-config-manager";
@@ -94,7 +95,7 @@ export class ThemeApiInstallationDeleteCommand {
 				result !== null && result !== undefined && result !== ""
 					? result
 					: { message: `Theme ${themeId} deleted successfully.` };
-			process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
+			writeJsonOutput(`${JSON.stringify(payload, null, 2)}\n`);
 			return;
 		}
 		this.logger.Log(`Theme ${label} deleted successfully.`);
