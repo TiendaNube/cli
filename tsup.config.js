@@ -1,13 +1,18 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-	entry: ["./src/cli.ts"],
+	entry: ["./src/cli.ts", "./src/postinstall.ts"],
 	clean: true,
 	format: ["esm"],
 	dts: false,
 	outDir: "./dist",
 	minify: false,
 	sourcemap: true,
+	// Off deliberately: tsup enables splitting for esm with more than one entry,
+	// which would turn `dist/cli.js` — the published `bin` — into a file that needs
+	// a sibling chunk. Each entry stays self-contained instead, at the cost of the
+	// agent table appearing in both.
+	splitting: false,
 	define: {
 		// Amplitude ingestion key, injected from the CircleCI context at publish
 		// time. Only the variable *name* lives in source: this file and src/ are

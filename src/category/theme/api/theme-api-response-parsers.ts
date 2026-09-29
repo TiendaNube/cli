@@ -206,7 +206,7 @@ export function extractInstallationsArray(body: unknown): unknown[] {
 }
 
 /**
- * Per EXT-518 the user-facing CLI vocabulary calls the installation's unique
+ * The user-facing CLI vocabulary calls the installation's unique
  * id `theme_id`, and everything that describes the *base catalog theme* it
  * was created from carries the `base_theme*` prefix. The Public API still
  * returns the legacy shape (`installation_id`/`id`, plus `theme_id` /
@@ -241,7 +241,7 @@ function transformInstallationForJson(item: unknown): unknown {
 
 /**
  * Pretty JSON for the console: `{ "themes": [ ... ] }`. Items are remapped
- * to the EXT-518 vocabulary (see `transformInstallationForJson`); the wrapper
+ * to the CLI vocabulary (see `transformInstallationForJson`); the wrapper
  * key also drops the "installation" word.
  */
 export function stringifyListInstallationsResponse(body: unknown): string {
@@ -255,6 +255,36 @@ export function stringifyListInstallationsResponse(body: unknown): string {
 		return `${JSON.stringify({ ...rest, themes: list }, null, 2)}\n`;
 	}
 	return `${JSON.stringify({ themes: list }, null, 2)}\n`;
+}
+
+/** Plan cap on non-archived themes, from `meta.max_installations`; `null` when absent or invalid. */
+export function extractMaxThemes(body: unknown): number | null {
+	if (!isRecord(body) || !isRecord(body.meta)) {
+		return null;
+	}
+	const max = body.meta.max_installations;
+	return typeof max === "number" && Number.isFinite(max) && max >= 0
+		? max
+		: null;
+}
+
+/**
+ * Footer line for the `theme list` table. Counts only non-archived themes,
+ * matching how the Public API enforces the plan cap on `theme create`.
+ */
+export function formatThemeLimitLine(
+	installations: unknown[],
+	maxThemes: number | null,
+): string | null {
+	if (maxThemes === null) {
+		return null;
+	}
+	const archived = installations.filter(
+		(item) => isRecord(item) && item.archived === true,
+	).length;
+	const active = installations.length - archived;
+	const note = archived > 0 ? " (archived themes don't count)" : "";
+	return `Limit: ${active} of ${maxThemes} themes in use${note}`;
 }
 
 export type InstallationTableFields = {

@@ -3,6 +3,7 @@ import { Option } from "commander";
 import { CliError, runAction } from "../../../../cli-action";
 import { CliLogger } from "../../../../cli-logger";
 import { addRequiredOption } from "../../../../cli-required-option";
+import { writeJsonOutput } from "../../../../json-output";
 import { resolveThemeLabel } from "../../theme-title-resolver";
 import { ThemeWorkspaceConfigManager } from "../../theme-workspace-config-manager";
 import {
@@ -81,7 +82,7 @@ export class ThemeApiInstallationCreateCommand {
 			...(baseThemeVariant ? { theme_variant: baseThemeVariant } : {}),
 		});
 		if (options.json) {
-			process.stdout.write(`${JSON.stringify(result ?? {}, null, 2)}\n`);
+			writeJsonOutput(`${JSON.stringify(result ?? {}, null, 2)}\n`);
 			return;
 		}
 		const newId = extractThemeIdFromResponse(result);

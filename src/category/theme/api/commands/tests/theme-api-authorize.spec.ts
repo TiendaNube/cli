@@ -79,7 +79,7 @@ describe("ThemeApiAuthorizeCommand", () => {
 	it("decodes token, fetches store URL, and runs setup", async () => {
 		const mockStoreId = 9_080_701;
 		const b64 = base64Payload(mockStoreId, "my-access-token");
-		themeApiCmdMocks.input.mockResolvedValueOnce(b64);
+		themeApiCmdMocks.password.mockResolvedValueOnce(b64);
 		themeApiCmdMocks.listInstallations.mockResolvedValue([]);
 
 		fetchSpy.mockResolvedValueOnce({
@@ -104,6 +104,8 @@ describe("ThemeApiAuthorizeCommand", () => {
 			expectedAuthorize.toString(),
 		);
 		expect(openSystemBrowserMock).not.toHaveBeenCalled();
+		expect(themeApiCmdMocks.password).toHaveBeenCalledWith("Paste your token:");
+		expect(themeApiCmdMocks.input).not.toHaveBeenCalled();
 		expect(fakePuppeteer.browser.close).toHaveBeenCalledTimes(1);
 		expect(fetchSpy).toHaveBeenCalledWith(
 			`${DEFAULT_PUBLIC_API_BASE_URL}/2025-03/9080701/store`,
@@ -121,7 +123,7 @@ describe("ThemeApiAuthorizeCommand", () => {
 	it("uses --api-url for store fetch and setup base", async () => {
 		const altStoreId = 55_501;
 		const b64 = base64Payload(altStoreId, "tok");
-		themeApiCmdMocks.input.mockResolvedValueOnce(b64);
+		themeApiCmdMocks.password.mockResolvedValueOnce(b64);
 		themeApiCmdMocks.listInstallations.mockResolvedValue([]);
 
 		fetchSpy.mockResolvedValueOnce({
@@ -191,7 +193,7 @@ describe("ThemeApiAuthorizeCommand", () => {
 
 	it("opens default authorize URL with region=br when CLI is nuvemshop", async () => {
 		getCliExecutableNameMock.mockImplementation(() => "nuvemshop");
-		themeApiCmdMocks.input.mockResolvedValueOnce("");
+		themeApiCmdMocks.password.mockResolvedValueOnce("");
 
 		const program = programWithThemeCommand((c) => {
 			new ThemeApiAuthorizeCommand().Bind(c);
@@ -208,7 +210,7 @@ describe("ThemeApiAuthorizeCommand", () => {
 	});
 
 	it("errors when pasted token is empty", async () => {
-		themeApiCmdMocks.input.mockResolvedValueOnce("");
+		themeApiCmdMocks.password.mockResolvedValueOnce("");
 		const program = programWithThemeCommand((c) => {
 			new ThemeApiAuthorizeCommand().Bind(c);
 		});
@@ -218,7 +220,7 @@ describe("ThemeApiAuthorizeCommand", () => {
 
 	it("errors when decoded JSON is invalid", async () => {
 		const bad = Buffer.from("not-json", "utf8").toString("base64");
-		themeApiCmdMocks.input.mockResolvedValueOnce(bad);
+		themeApiCmdMocks.password.mockResolvedValueOnce(bad);
 		const program = programWithThemeCommand((c) => {
 			new ThemeApiAuthorizeCommand().Bind(c);
 		});
@@ -229,7 +231,7 @@ describe("ThemeApiAuthorizeCommand", () => {
 
 	it("errors when store API returns non-OK", async () => {
 		const b64 = base64Payload(1, "tok");
-		themeApiCmdMocks.input.mockResolvedValueOnce(b64);
+		themeApiCmdMocks.password.mockResolvedValueOnce(b64);
 		fetchSpy.mockResolvedValueOnce({
 			ok: false,
 			status: 403,
@@ -280,7 +282,7 @@ describe("ThemeApiAuthorizeCommand", () => {
 	it("falls back to openSystemBrowser when Puppeteer launch throws", async () => {
 		puppeteerLaunchMock.mockReset();
 		puppeteerLaunchMock.mockRejectedValueOnce(new Error("no chromium"));
-		themeApiCmdMocks.input.mockResolvedValueOnce("");
+		themeApiCmdMocks.password.mockResolvedValueOnce("");
 
 		const program = programWithThemeCommand((c) => {
 			new ThemeApiAuthorizeCommand().Bind(c);
@@ -298,7 +300,7 @@ describe("ThemeApiAuthorizeCommand", () => {
 
 	it("closes the Puppeteer browser even when paste flow errors", async () => {
 		const bad = Buffer.from("not-json", "utf8").toString("base64");
-		themeApiCmdMocks.input.mockResolvedValueOnce(bad);
+		themeApiCmdMocks.password.mockResolvedValueOnce(bad);
 
 		const program = programWithThemeCommand((c) => {
 			new ThemeApiAuthorizeCommand().Bind(c);

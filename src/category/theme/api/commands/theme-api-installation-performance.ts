@@ -3,6 +3,7 @@ import { Option } from "commander";
 import { CliError, runAction } from "../../../../cli-action";
 import { getCliExecutableName } from "../../../../cli-executable-name";
 import { CliLogger } from "../../../../cli-logger";
+import { writeJsonOutput } from "../../../../json-output";
 import { resolveThemeIdOrFail } from "../../theme-id-resolver";
 import { ThemeWorkspaceConfigManager } from "../../theme-workspace-config-manager";
 import {
@@ -117,7 +118,7 @@ export class ThemeApiInstallationPerformanceCommand {
 		);
 
 		if (options.json) {
-			process.stdout.write(
+			writeJsonOutput(
 				formatThemePerformanceReportsJson(reports, {
 					detailed: options.detailed,
 				}),

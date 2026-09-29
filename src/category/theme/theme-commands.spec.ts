@@ -35,7 +35,7 @@ describe("Theme command tree", () => {
 
 		const ftp = theme?.commands.find((c) => c.name() === "ftp");
 		expect(ftp?.commands.map((c) => c.name()).sort()).toEqual(
-			["pull", "push", "setup", "watch"].sort(),
+			["pull", "diff", "push", "setup", "watch"].sort(),
 		);
 	});
 });

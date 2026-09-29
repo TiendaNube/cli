@@ -20,6 +20,7 @@ vi.mock("../../theme-ftp-client", () => ({
 		return {
 			Test: ftpCmdMocks.testFtp,
 			DownloadAll: ftpCmdMocks.downloadAll,
+			ComputeDiff: ftpCmdMocks.computeDiff,
 			SyncAll: ftpCmdMocks.syncAll,
 			Upload: ftpCmdMocks.upload,
 			Delete: ftpCmdMocks.delete,
@@ -33,6 +34,7 @@ vi.mock("../../../../../cli-logger", () => ({
 		return {
 			Log: ftpCmdMocks.log,
 			Error: ftpCmdMocks.error,
+			Warn: ftpCmdMocks.warn,
 		};
 	}),
 }));
@@ -81,6 +83,16 @@ export function resetFtpCmdMocks(): void {
 	ftpCmdMocks.lastSync = undefined;
 	ftpCmdMocks.log.mockClear();
 	ftpCmdMocks.error.mockClear();
+	ftpCmdMocks.warn.mockClear();
+	ftpCmdMocks.computeDiff.mockReset();
+	ftpCmdMocks.computeDiff.mockResolvedValue({
+		success: true,
+		toCreate: [],
+		toUpdate: [],
+		toDelete: [],
+		skippedEmpty: [],
+		unchangedCount: 0,
+	});
 	ftpCmdMocks.confirm.mockReset();
 	ftpCmdMocks.confirm.mockResolvedValue(true);
 	ftpCmdMocks.testFtp.mockReset();

@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 import { CliError, runAction } from "../../../../cli-action";
 import { CliLogger } from "../../../../cli-logger";
+import { writeJsonOutput } from "../../../../json-output";
 import { ThemeWorkspaceConfigManager } from "../../theme-workspace-config-manager";
 import {
 	addHiddenThemeApiHeaderOption,
@@ -13,7 +14,9 @@ import { resolveApiCredentials } from "../theme-api-credentials";
 import { resolveExtraHeadersFromCli } from "../theme-api-extra-headers";
 import {
 	extractInstallationsArray,
+	extractMaxThemes,
 	formatInstallationsAsTextTable,
+	formatThemeLimitLine,
 	stringifyListInstallationsResponse,
 } from "../theme-api-response-parsers";
 
@@ -57,7 +60,7 @@ export class ThemeApiInstallationListCommand {
 		const body: unknown = await client.listInstallations();
 
 		if (options.json) {
-			process.stdout.write(stringifyListInstallationsResponse(body));
+			writeJsonOutput(stringifyListInstallationsResponse(body));
 			return;
 		}
 
@@ -73,6 +76,10 @@ export class ThemeApiInstallationListCommand {
 				currentId: config.themeId,
 			}).trimEnd(),
 		);
+		const limitLine = formatThemeLimitLine(rows, extractMaxThemes(body));
+		if (limitLine) {
+			this.logger.Log(limitLine);
+		}
 	}
 
 	Bind(command: Command): void {

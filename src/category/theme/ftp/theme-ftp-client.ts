@@ -85,9 +85,15 @@ export class ThemeFtpClient {
 		}, this.FTP_TIMEOUT);
 	}
 
+	/**
+	 * `notice` is threaded through instead of logging directly: this runs once per
+	 * remote directory, and every one of those lines used to go to stdout. Under
+	 * `theme ftp diff --json` that buries the payload.
+	 */
 	private async ListRecursively(
 		client: Client,
 		currentPath: string,
+		notice: (message: string) => void = (m) => this.logger.Log(m),
 	): Promise<
 		Array<{ path: string; size: number; modifiedAt: Date | undefined }>
 	> {
@@ -104,8 +110,12 @@ export class ThemeFtpClient {
 			}
 			if (item.type === FileType.Directory) {
 				const dirPath = `${currentPath + item.name}/`;
-				this.logger.Log(`  scanning ${dirPath}`);
-				const recursiveFiles = await this.ListRecursively(client, dirPath);
+				notice(`  scanning ${dirPath}`);
+				const recursiveFiles = await this.ListRecursively(
+					client,
+					dirPath,
+					notice,
+				);
 				files.push(...recursiveFiles);
 			}
 		}
@@ -184,14 +194,37 @@ export class ThemeFtpClient {
 		} catch {
 			return false;
 		}
-		// Size-0 files are never uploaded (basic-ftp SSL bug workaround), so treat as unchanged.
-		if (stats.size === 0) return false;
+		// Size-0 files are never uploaded (basic-ftp SSL bug workaround). Report one
+		// as different only when the remote still has content, so ComputeDiff lists
+		// it under skippedEmpty instead of hiding it as unchanged.
+		if (stats.size === 0) return remote.size !== 0;
 		if (stats.size !== remote.size) return true;
 		if (remote.modifiedAt === undefined) return true;
 		return Math.abs(stats.mtimeMs - remote.modifiedAt.getTime()) > 2000;
 	}
 
-	async ComputeDiff(force = false): Promise<ThemeFtpDiffResult> {
+	/** Upload skips zero-byte files, so the diff must not count them as work. */
+	private isEmptyFile(file: string): boolean {
+		try {
+			return fs.statSync(file).size === 0;
+		} catch {
+			// Vanished between listing and stat: let the upload report it instead.
+			return false;
+		}
+	}
+
+	/**
+	 * Compares the local tree against the remote listing. Read-only: it LISTs and
+	 * nothing else.
+	 *
+	 * `onNotice` exists because the default writes progress to stdout, and
+	 * `theme ftp diff --json` must keep stdout to the payload alone.
+	 */
+	async ComputeDiff(
+		force = false,
+		options: { onNotice?: (message: string) => void } = {},
+	): Promise<ThemeFtpDiffResult> {
+		const notice = options.onNotice ?? ((m: string) => this.logger.Log(m));
 		const cwd = path.resolve("./");
 		let remoteFiles: Array<{
 			path: string;
@@ -211,8 +244,8 @@ export class ThemeFtpClient {
 						!ThemeFtpTools.isExcludedFromThemeUpload(entry.path),
 				}).then((entries) => entries.map((e) => e.fullPath)),
 				this.RunFtpCommandWithRetries(async (client: Client) => {
-					this.logger.Log("Fetching remote files...");
-					remoteFiles = await this.ListRecursively(client, "/");
+					notice("Fetching remote files...");
+					remoteFiles = await this.ListRecursively(client, "/", notice);
 				}, this.FTP_TIMEOUT),
 			]);
 		} catch (err) {
@@ -234,6 +267,7 @@ export class ThemeFtpClient {
 		const localRelSet = new Set<string>();
 		const toCreate: string[] = [];
 		const toUpdate: string[] = [];
+		const skippedEmpty: string[] = [];
 		let unchangedCount = 0;
 
 		for (const file of localFiles) {
@@ -242,12 +276,16 @@ export class ThemeFtpClient {
 			const ftpRel = this.toFtpRelativePath(rel);
 			localRelSet.add(ftpRel);
 			const remoteInfo = remoteFileMap.get(ftpRel);
-			if (remoteInfo === undefined) {
-				toCreate.push(file);
-			} else if (force || this.needsUpload(file, remoteInfo)) {
-				toUpdate.push(file);
-			} else {
+			const wouldUpload =
+				remoteInfo === undefined || force || this.needsUpload(file, remoteInfo);
+			if (!wouldUpload) {
 				unchangedCount++;
+			} else if (this.isEmptyFile(file)) {
+				skippedEmpty.push(file);
+			} else if (remoteInfo === undefined) {
+				toCreate.push(file);
+			} else {
+				toUpdate.push(file);
 			}
 		}
 
@@ -255,13 +293,29 @@ export class ThemeFtpClient {
 			.filter((f) => !localRelSet.has(f.path.replace(/^\/+/, "")))
 			.map((f) => f.path);
 
-		return { success: true, toCreate, toUpdate, toDelete, unchangedCount };
+		return {
+			success: true,
+			toCreate,
+			toUpdate,
+			toDelete,
+			skippedEmpty,
+			unchangedCount,
+		};
 	}
 
-	async SyncAll(force = false): Promise<ThemeFtpClientResult> {
+	/**
+	 * `precomputedDiff` lets a caller that already ran `ComputeDiff` — to show the
+	 * user what a push would do before asking — reuse it instead of paying for a
+	 * second recursive remote listing. Pass only a diff computed with the same
+	 * `force` value, or the summary shown and the work done would disagree.
+	 */
+	async SyncAll(
+		force = false,
+		precomputedDiff?: ThemeFtpDiffResult,
+	): Promise<ThemeFtpClientResult> {
 		const startTime = Date.now();
 
-		const diff = await this.ComputeDiff(force);
+		const diff = precomputedDiff ?? (await this.ComputeDiff(force));
 		if (!diff.success) return diff;
 
 		this.logger.Log(
@@ -428,7 +482,8 @@ export class ThemeFtpClient {
 				const backoff =
 					this.FTP_RETRY_BASE_DELAY * 2 ** (attempt - 1) +
 					Math.floor(Math.random() * 250); // jitter to avoid thundering herd
-				this.logger.Log(
+				// Warn, not Log: stderr keeps `theme ftp diff --json` parseable.
+				this.logger.Warn(
 					`FTP operation failed (attempt ${attempt}/${this.FTP_MAX_RETRIES}): ${errorMessage}. Retrying in ${backoff}ms...`,
 				);
 				await this.delay(backoff);

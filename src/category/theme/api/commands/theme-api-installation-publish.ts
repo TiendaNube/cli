@@ -4,6 +4,7 @@ import { CliError, runAction } from "../../../../cli-action";
 import { CliInteraction } from "../../../../cli-interaction";
 import { CliLogger } from "../../../../cli-logger";
 import { assertConfirmable, confirmOrAbort } from "../../../../interactivity";
+import { writeJsonOutput } from "../../../../json-output";
 import { resolveThemeIdOrFail } from "../../theme-id-resolver";
 import { formatThemeLabel } from "../../theme-title-resolver";
 import { ThemeWorkspaceConfigManager } from "../../theme-workspace-config-manager";
@@ -94,7 +95,7 @@ export class ThemeApiInstallationPublishCommand {
 
 		const result = await client.publishInstallation(themeId);
 		if (options.json) {
-			process.stdout.write(`${JSON.stringify(result ?? {}, null, 2)}\n`);
+			writeJsonOutput(`${JSON.stringify(result ?? {}, null, 2)}\n`);
 			return;
 		}
 		this.logger.Log(

@@ -16,6 +16,8 @@ Both `nuvemshop` and `tiendanube` run the same CLI. Examples below use `nuvemsho
   - [End-to-end example: FTP workflow](#end-to-end-example-ftp-workflow)
   - [Theme, Fork (Public API)](#theme-fork-public-api)
   - [End-to-end example: Fork workflow](#end-to-end-example-fork-workflow)
+  - [Skills](#skills)
+- [Agent Skills](#agent-skills)
 - [OS compatibility](#os-compatibility)
 - [Anonymous usage data](#anonymous-usage-data)
 - [Official documentation](#official-documentation)
@@ -77,6 +79,7 @@ For a full examples, see [End-to-end example: Fork workflow](#end-to-end-example
 |--------|-------------|
 | `theme ftp setup` | Configure FTP and store URL |
 | `theme ftp pull` | Download theme files from FTP |
+| `theme ftp diff` | Show what a push would change, without uploading |
 | `theme ftp push` | Upload local files to FTP |
 | `theme ftp watch` | Watch files, sync to FTP, optionally reload the storefront in a browser |
 
@@ -106,9 +109,21 @@ Do not commit or share it. Add `.nuvem` to `.gitignore`.
 
 **Optional:** `-y` (skip overwrite confirmation), `-v` (verbose FTP)
 
+#### `theme ftp diff`
+
+**Optional:** `--json` (machine-readable output), `--force` (preview a forced push, which uploads every file), `-v` (verbose FTP)
+
+Read-only: it uploads nothing. Lists the files a push would add, modify, and **delete from the remote theme**, plus files skipped for being empty (zero-byte files are never uploaded). Run it before `theme ftp push`, which is live on the published theme immediately.
+
+It compares **file size and modification time, not content** — so an edit that leaves both unchanged is reported as unchanged, and there is no line-level diff as there is for the Fork workflow.
+
 #### `theme ftp push`
 
-**Optional:** `-y` (skip overwrite confirmation), `-v` (verbose FTP), `--force` (skip remote comparison and upload all files; also overrides the refusal to push a tree pulled over the Public API)
+**Optional:** `-y` (skip overwrite confirmation), `-v` (verbose FTP), `--force` (upload all files without comparing against the remote; also overrides the refusal to push a tree pulled over the Public API)
+
+The confirmation reports how many files would be added, modified, and deleted before you answer. With `-y` the same counts are logged instead.
+
+`--force` deliberately skips that: it means "upload everything, don't tell me what changes", so no comparison runs and the confirmation carries no counts.
 
 #### `theme ftp watch`
 
@@ -140,7 +155,10 @@ nuvemshop theme ftp pull
 # 3.1 Iterate: edit files in your editor while watch syncs and reloads the storefront
 nuvemshop theme ftp watch
 
-# 3.2 Edit files and run push to completely update the storefront
+# 3.2 Review before writing to the live theme — nothing is uploaded here
+nuvemshop theme ftp diff
+
+# 3.3 Push to completely update the storefront
 nuvemshop theme ftp push
 ```
 
@@ -194,9 +212,9 @@ nuvemshop theme authorize --token "<token-from-authorize-page>" -y
 
 #### `theme list`
 
-**Default:** Prints an **aligned table** (`id`, `store_id`, `title`, `base_theme`, `version`, `base_theme_type`, `prod`, `fork`).
+**Default:** Prints the store id, then an **aligned table** (`id`, `title`, `base_theme`, `base_theme_variant`, `base_theme_version`, `base_theme_type`, `prod`, `fork`, `archived`). A `>` marks the theme linked to the current folder. Below the table, `Total` counts every theme and `Limit` shows how many themes count toward your plan's limit (archived themes don't count).
 
-**Optional:** `--json` (full API JSON), **`-v`** (verbose HTTP). 
+**Optional:** `--json` (full API JSON; the plan limit is `meta.max_installations`), **`-v`** (verbose HTTP). 
 
 ```bash
 nuvemshop theme list --json
@@ -255,7 +273,7 @@ nuvemshop theme delete
 
 #### `theme diff`
 
-Shows what a `theme push` would change — which files are **new**, which would be **updated**, and which would be **deleted** — without uploading anything. Files that push would skip (like `custom/`, or theme code on a theme that is not forked) are listed as skipped, not as changes. Reformatting a JSON file does not count as a change.
+Shows what a `theme push` would change — which files are **new**, which would be **updated**, and which would be **deleted** — without uploading anything. Files that push would skip (like `custom/`, or theme code on a theme that is not forked) are listed as skipped, not as changes.
 
 **Default:** prints a summary grouped by change type, with one line per file.
 
@@ -383,6 +401,67 @@ nuvemshop theme publish -y
 ```
 
 For CI or scripts, swap step 1 for `nuvemshop theme authorize --token "<token>"` to skip the browser entirely.
+
+### Skills
+
+| Command | Description |
+|---------|-------------|
+| `skills install` | Install the bundled [Agent Skills](#agent-skills) into the coding agents on this machine |
+
+#### `skills install`
+
+```bash
+nuvemshop skills install
+```
+
+Links every bundled skill into the skills folder of each coding agent found on
+this machine, under your home directory. Because they are symlinks,
+`npm update -g @tiendanube/cli` updates the skills too; re-run the command after
+installing a new agent. Re-running is safe: an up-to-date link is reported as
+`unchanged`, and a directory the command did not create is never replaced without
+asking.
+
+**Optional:** **`--project`** (install into the current directory instead of your
+home directory), **`--agent <name...>`** (pick clients instead of detecting them),
+**`--all`** (every supported client), **`--copy`** (copy the files instead of
+linking, for Windows without developer mode), **`--dry-run`** (report what would
+happen, change nothing), **`--json`** (machine-readable output).
+
+**Clients:** `claude-code`, `cursor`, `codex`, `gemini-cli`, `antigravity`,
+`github-copilot`, `openclaw`, `pi`, `windsurf`, `zed`, `opencode`, `goose`, `amp`,
+`cline`, `warp`, `droid`, `kilo`, `roo`, `continue`, `junie`, `augment`, `trae`,
+`qwen-code`, `openhands`, `kiro-cli`, `crush`. Paths and detection follow the
+[Agent Skills reference implementation](https://github.com/vercel-labs/skills);
+`--dry-run` lists the ones found on your machine.
+
+For Claude, one run covers everything: Claude Code reads `~/.claude/skills` both
+in a terminal and from the **Code** tab of the Claude desktop app.
+
+The CLI points you at it twice, and never asks for anything: once after
+`npm i -g`, and again at the bottom of `nuvemshop --help` — both naming the agents
+it found on this machine, and both silent when it finds none.
+
+## Agent Skills
+
+The package ships a `skills/` folder of [Agent Skills](https://agentskills.io) —
+the knowledge an AI coding agent needs to work on a Nuvemshop/Tiendanube theme
+without guessing: which theme family a store's theme belongs to, which paths need
+a fork and what forking costs, and how a classic theme's Twig vocabulary differs.
+Install them with [`skills install`](#skills-install).
+
+| Skill | Covers |
+|---|---|
+| `nuvemshop-theme-use-cases` | start here: a request mapped to the right workflow, and what is not a CLI job |
+| `nuvemshop-theme-fork-workflow` | sections-based themes over the Public API, end to end |
+| `nuvemshop-theme-ftp-workflow` | classic themes over FTP, where every push is production |
+| `nuvemshop-fork-and-push-rules` | what a push accepts unforked, and the cost of forking |
+| `nuvemshop-ipanema-architecture` | sections, blocks, JSON templates, section groups |
+| `nuvemshop-ipanema-schema-reference` | the `{% schema %}` vocabulary and every setting type |
+| `nuvemshop-classic-theme-architecture` | classic folder layout, `config/*.txt`, Twig traps |
+
+The folder follows the [npm skills convention](https://github.com/antfu/skills-npm),
+so a project that keeps the CLI as a dev dependency can also pick the skills up
+through that ecosystem instead of running the command.
 
 ## OS compatibility
 

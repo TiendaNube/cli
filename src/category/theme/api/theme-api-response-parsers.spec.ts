@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
 	extractInstallationsArray,
+	extractMaxThemes,
 	extractThemeIdFromResponse,
 	formatInstallationsAsTextTable,
+	formatThemeLimitLine,
 	parseGetFileResponse,
 	parseGetFilesResponse,
 	parseInstallationsList,
@@ -255,7 +257,7 @@ describe("extractThemeIdFromResponse", () => {
 });
 
 describe("stringifyListInstallationsResponse", () => {
-	it("rewrites installation fields to the EXT-518 base_theme vocabulary", () => {
+	it("rewrites installation fields to the base_theme vocabulary", () => {
 		const body = {
 			installations: [
 				{
@@ -472,5 +474,43 @@ describe("formatInstallationsAsTextTable", () => {
 		]);
 		// Both the version and variant cells fall back to N/A
 		expect(text.match(/N\/A/g)?.length).toBe(2);
+	});
+});
+
+describe("extractMaxThemes", () => {
+	it("reads meta.max_installations", () => {
+		expect(extractMaxThemes({ meta: { max_installations: 6 } })).toBe(6);
+		expect(extractMaxThemes({ meta: { max_installations: 0 } })).toBe(0);
+	});
+
+	it("returns null when the limit is missing or invalid", () => {
+		expect(extractMaxThemes({ installations: [] })).toBeNull();
+		expect(extractMaxThemes([])).toBeNull();
+		expect(extractMaxThemes({ meta: { max_installations: "6" } })).toBeNull();
+		expect(extractMaxThemes({ meta: { max_installations: -1 } })).toBeNull();
+		expect(
+			extractMaxThemes({ meta: { max_installations: Number.NaN } }),
+		).toBeNull();
+	});
+});
+
+describe("formatThemeLimitLine", () => {
+	it("returns null without a limit", () => {
+		expect(formatThemeLimitLine([{ id: 1 }], null)).toBeNull();
+	});
+
+	it("counts every theme when none is archived", () => {
+		expect(formatThemeLimitLine([{ id: 1 }, { id: 2 }], 6)).toBe(
+			"Limit: 2 of 6 themes in use",
+		);
+	});
+
+	it("leaves archived themes out of the count and says so", () => {
+		expect(
+			formatThemeLimitLine(
+				[{ id: 1 }, { id: 2, archived: true }, { id: 3, archived: false }],
+				2,
+			),
+		).toBe("Limit: 2 of 2 themes in use (archived themes don't count)");
 	});
 });

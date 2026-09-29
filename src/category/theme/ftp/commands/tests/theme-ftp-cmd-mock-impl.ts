@@ -14,9 +14,12 @@ export const ftpCmdMocks = {
 	lastSync: undefined as "api" | "ftp" | undefined,
 	log: vi.fn(),
 	error: vi.fn(),
+	warn: vi.fn(),
 	confirm: vi.fn().mockResolvedValue(true),
 	testFtp: vi.fn(),
 	downloadAll: vi.fn(),
+	/** Defaults to an empty successful diff; tests override it per case. */
+	computeDiff: vi.fn(),
 	syncAll: vi.fn(),
 	upload: vi.fn(),
 	delete: vi.fn(),

@@ -1,6 +1,6 @@
 {
 	"name": "@tiendanube/cli",
-	"version": "2.3.2",
+	"version": "2.4.0",
 	"description": "A command-line interface tool to interact with Nuvemshop/Tiendanube services.",
 	"main": "./dist/cli.js",
 	"scripts": {
@@ -12,14 +12,16 @@
 		"test:coverage": "vitest run --coverage",
 		"local:reset": "npm uninstall -g @tiendanube/cli || true; npm run test && npm run build && npm link",
 		"local:check": "npm run lint && npm run test && npm run build",
-		"prepare": "husky"
+		"prepare": "husky",
+		"postinstall": "node -e \"import('./dist/postinstall.js').catch(()=>{})\""
 	},
 	"bin": {
 		"tiendanube": "dist/cli.js",
 		"nuvemshop": "dist/cli.js"
 	},
 	"files": [
-		"./dist"
+		"./dist",
+		"./skills"
 	],
 	"publishConfig": {
 		"access": "public"

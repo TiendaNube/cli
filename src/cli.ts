@@ -2,6 +2,8 @@ import { Command } from "commander";
 import updateNotifier from "update-notifier";
 import packageJson from "../package.json" with { type: "json" };
 import { NubesdkCommands } from "./category/nubesdk/nubesdk";
+import { SkillsCommands } from "./category/skills/skills";
+import { skillsHelpFooter } from "./category/skills/skills-help";
 import { ThemeCommands } from "./category/theme/theme-commands";
 import { getCliExecutableName } from "./cli-executable-name";
 import { CliLogger } from "./cli-logger";
@@ -19,9 +21,14 @@ program
 		false,
 	);
 
+// Printed only when someone asks for help, and only when the machine has an agent
+// the skills could serve.
+program.addHelpText("after", () => skillsHelpFooter());
+
 // NubeSDK commands are hidden until NubeSDK support on Core Storefronts is publicly announced
 // new NubesdkCommands().Bind(program);
 new ThemeCommands().Bind(program);
+new SkillsCommands().Bind(program);
 new TelemetryCommands().Bind(program);
 
 updateNotifier({
