@@ -637,6 +637,70 @@ describe("ThemeApiPushCommand", () => {
 			readFileSpy.mockRestore();
 		});
 
+		it("aborts before uploading when the API rejects a file", async () => {
+			const readFileSpy = vi
+				.spyOn(fs, "readFileSync")
+				.mockReturnValue(Buffer.from("{% if a %}", "utf8"));
+			readdirpMocks.readdirpPromise.mockResolvedValue([
+				{ fullPath: path.join(cwd, "sections", "broken.tpl") },
+			]);
+			themeApiCmdMocks.validateFiles.mockResolvedValue([
+				{
+					path: "sections/broken.tpl",
+					code: "TWIG_SYNTAX_ERROR",
+					message: "Twig syntax error: Unexpected end of template. (line 1).",
+				},
+			]);
+
+			const program = programWithThemeCommand((c) => {
+				new ThemeApiPushCommand().Bind(c);
+			});
+			await parseWithTail(program, ["theme", "push", "-y"]);
+
+			expect(themeApiCmdMocks.validateFiles).toHaveBeenCalledWith(
+				"9",
+				expect.arrayContaining([
+					expect.objectContaining({ path: "sections/broken.tpl" }),
+				]),
+			);
+			expect(themeApiCmdMocks.batchUpdateFiles).not.toHaveBeenCalled();
+			expect(themeApiCmdMocks.error).toHaveBeenCalledWith(
+				"  Invalid: sections/broken.tpl — Twig syntax error: Unexpected end of template. (line 1).",
+			);
+			expect(themeApiCmdMocks.error).toHaveBeenCalledWith(
+				"Push aborted: 1 file(s) failed validation. Nothing was uploaded.",
+			);
+
+			readFileSpy.mockRestore();
+		});
+
+		it("uploads when the API has no validate endpoint", async () => {
+			const readFileSpy = vi
+				.spyOn(fs, "readFileSync")
+				.mockReturnValue(Buffer.from("ok", "utf8"));
+			readdirpMocks.readdirpPromise.mockResolvedValue([
+				{ fullPath: path.join(cwd, "sections", "ok.tpl") },
+			]);
+			themeApiCmdMocks.validateFiles.mockResolvedValue(null);
+
+			const program = programWithThemeCommand((c) => {
+				new ThemeApiPushCommand().Bind(c);
+			});
+			await parseWithTail(program, ["theme", "push", "-y"]);
+
+			expect(themeApiCmdMocks.batchUpdateFiles).toHaveBeenCalled();
+
+			readFileSpy.mockRestore();
+		});
+
+		it("does not call validate when there is nothing to upload", async () => {
+			const program = programWithThemeCommand((c) => {
+				new ThemeApiPushCommand().Bind(c);
+			});
+			await parseWithTail(program, ["theme", "push", "-y"]);
+			expect(themeApiCmdMocks.validateFiles).not.toHaveBeenCalled();
+		});
+
 		it("logs sync error when batchUpdateFiles fails", async () => {
 			themeApiCmdMocks.batchUpdateFiles.mockRejectedValue(
 				new Error("HTTP 500"),

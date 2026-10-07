@@ -16,7 +16,9 @@ export type ThemeApiErrorCode =
 	| "CANNOT_DELETE_PRODUCTIVE_INSTALLATION"
 	| "NO_PRODUCTIVE_INSTALLATION"
 	| "PRODUCTIVE_INSTALLATION_EXISTS"
-	| "INVALID_THEME_CODE";
+	| "INVALID_THEME_CODE"
+	| "TWIG_SYNTAX_ERROR"
+	| "INVALID_SCHEMA";
 
 /** Code-driven hints rendered in place of the API `message`. Add one line here per friendly override. */
 const THEME_API_CODE_HINTS: Partial<Record<ThemeApiErrorCode, string>> = {
@@ -105,6 +107,18 @@ export function extractThemeApiCodeAndMessage(
 	return { code: null, message: truncateThemeApiErrorDetail(plain) };
 }
 
+function detailsPath(body: unknown): string | null {
+	if (body === null || typeof body !== "object") {
+		return null;
+	}
+	const details = (body as { details?: unknown }).details;
+	if (details === null || typeof details !== "object") {
+		return null;
+	}
+	const p = (details as { path?: unknown }).path;
+	return typeof p === "string" && p.length > 0 ? p : null;
+}
+
 export type ThemeApiErrorInit = {
 	operation: string;
 	status: number;
@@ -130,7 +144,15 @@ export class ThemeApiError extends Error {
 			? THEME_API_CODE_HINTS[init.code as ThemeApiErrorCode]
 			: undefined;
 		const detail = hint ?? init.apiMessage;
-		super(`${init.operation} failed (HTTP ${init.status}): ${detail}`);
+		// A batch rejection names the offending file only in `details.path`.
+		const filePath = detailsPath(init.body);
+		const fileSuffix =
+			filePath !== null && !init.operation.includes(filePath)
+				? ` (${filePath})`
+				: "";
+		super(
+			`${init.operation} failed (HTTP ${init.status}): ${detail}${fileSuffix}`,
+		);
 		this.name = "ThemeApiError";
 		this.operation = init.operation;
 		this.status = init.status;

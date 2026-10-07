@@ -1,5 +1,6 @@
 import type { Command } from "commander";
 import { ThemeApiAuthorizeCommand } from "./commands/theme-api-authorize";
+import { ThemeApiCheckCommand } from "./commands/theme-api-check";
 import { ThemeApiDiffCommand } from "./commands/theme-api-diff";
 import { ThemeApiInstallationCloneCommand } from "./commands/theme-api-installation-clone";
 import { ThemeApiInstallationCreateCommand } from "./commands/theme-api-installation-create";
@@ -35,6 +36,7 @@ export class ThemeApiCommands {
 		new ThemeApiPullCommand().Bind(theme);
 		new ThemeApiDiffCommand().Bind(theme);
 		new ThemeApiPushCommand().Bind(theme);
+		new ThemeApiCheckCommand().Bind(theme);
 		new ThemeApiWatchCommand().Bind(theme);
 		new ThemeApiDeprecatedInstallationCommands().Bind(theme);
 	}

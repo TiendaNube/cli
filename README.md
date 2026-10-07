@@ -181,6 +181,7 @@ Use these commands when syncing a **sections-based theme** via the **Public API*
 | `theme clone` | Clone a theme to a new one |
 | `theme delete` | Permanently delete a theme |
 | `theme diff` | Show what a push would change, without uploading |
+| `theme check` | Validate the files a push would send (Twig syntax, section schemas), without uploading |
 | `theme push` | Upload local files to a theme |
 | `theme watch` | Watch files and push via API on each change |
 | `theme fork` | Enable fork mode (full theme paths on push) |
@@ -285,9 +286,19 @@ nuvemshop theme diff --detailed
 nuvemshop theme diff --json --detailed
 ```
 
+#### `theme check`
+
+Validates the local files that `theme push` would send (the ones that differ from the remote theme) the way Nuvemshop checks them on save — Twig syntax in `.tpl` files, the JSON inside `{% schema %}` blocks, and size limits — without uploading anything. Lists each invalid file with the reason and exits with an error if any fails, so it fits CI or a pre-commit hook.
+
+**Optional:** `--theme-id` (defaults to the id saved by `theme pull`), **`--published`** (resolve the store's published theme via API), **`-v`** (verbose HTTP).
+
+```bash
+nuvemshop theme check
+```
+
 #### `theme push`
 
-Upload local files to a theme.
+Upload local files to a theme. Before uploading, every file to send is validated (see `theme check`); if any is invalid, each one is listed and nothing is uploaded.
 
 **Optional:** `--theme-id` (defaults to the id saved by `theme pull`), **`-y`** (skip publish confirmation), **`-v`** (verbose HTTP), **`--force`** (upload all files without remote comparison, skipping unchanged detection; also overrides the refusal to push a tree pulled over FTP).
 

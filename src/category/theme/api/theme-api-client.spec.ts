@@ -393,3 +393,124 @@ describe("ThemeApiClient.deleteFile", () => {
 		});
 	});
 });
+
+describe("ThemeApiClient.validateFiles", () => {
+	let fetchMock: ReturnType<typeof vi.fn>;
+
+	beforeEach(() => {
+		fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	it("posts the files to …/files/validate and returns the errors", async () => {
+		fetchMock.mockResolvedValueOnce(
+			jsonResponse(200, {
+				valid: false,
+				errors: [
+					{
+						path: "static/checkout.scss.tpl",
+						code: "TWIG_SYNTAX_ERROR",
+						message: "Twig syntax error: Unexpected end of template. (line 3).",
+						details: { path: "static/checkout.scss.tpl", line: 3 },
+					},
+				],
+			}),
+		);
+		const client = buildClient();
+		const files = [
+			{
+				path: "static/checkout.scss.tpl",
+				content: "{% if a %}",
+				format: "text",
+			},
+		];
+
+		const errors = await client.validateFiles("7", files);
+
+		expect(errors).toEqual([
+			{
+				path: "static/checkout.scss.tpl",
+				code: "TWIG_SYNTAX_ERROR",
+				message: "Twig syntax error: Unexpected end of template. (line 3).",
+			},
+		]);
+		const [calledUrl, init] = fetchMock.mock.calls[0] as [string, FetchInit];
+		expect(calledUrl).toBe(
+			"https://api.example.com/v1/42/theme-installations/7/files/validate",
+		);
+		expect(init.method).toBe("POST");
+		expect(JSON.parse(String(init.body))).toEqual({ upsert: files });
+	});
+
+	it("returns an empty list when every file is valid", async () => {
+		fetchMock.mockResolvedValueOnce(
+			jsonResponse(200, { valid: true, errors: [] }),
+		);
+
+		await expect(
+			buildClient().validateFiles("7", [
+				{ path: "snippets/a.tpl", content: "ok", format: "text" },
+			]),
+		).resolves.toEqual([]);
+	});
+
+	it("merges the errors of every chunk", async () => {
+		const big = "x".repeat(600 * 1024);
+		fetchMock
+			.mockResolvedValueOnce(
+				jsonResponse(200, {
+					valid: false,
+					errors: [
+						{ path: "snippets/a.tpl", code: "TWIG_SYNTAX_ERROR", message: "a" },
+					],
+				}),
+			)
+			.mockResolvedValueOnce(
+				jsonResponse(200, {
+					valid: false,
+					errors: [
+						{ path: "snippets/b.tpl", code: "TWIG_SYNTAX_ERROR", message: "b" },
+					],
+				}),
+			);
+
+		const errors = await buildClient().validateFiles("7", [
+			{ path: "snippets/a.tpl", content: big, format: "text" },
+			{ path: "snippets/b.tpl", content: big, format: "text" },
+		]);
+
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(errors?.map((e) => e.path)).toEqual([
+			"snippets/a.tpl",
+			"snippets/b.tpl",
+		]);
+	});
+
+	it("returns null when the API has no validate endpoint (404)", async () => {
+		fetchMock.mockResolvedValueOnce(
+			jsonResponse(404, { message: "Not found" }),
+		);
+
+		await expect(
+			buildClient().validateFiles("7", [
+				{ path: "snippets/a.tpl", content: "ok", format: "text" },
+			]),
+		).resolves.toBeNull();
+	});
+
+	it("throws on other failures", async () => {
+		fetchMock.mockResolvedValueOnce(
+			jsonResponse(400, { message: "Missing upsert.", code: "BAD_REQUEST" }),
+		);
+
+		await expect(
+			buildClient().validateFiles("7", [
+				{ path: "snippets/a.tpl", content: "ok", format: "text" },
+			]),
+		).rejects.toBeInstanceOf(ThemeApiError);
+	});
+});

@@ -54,6 +54,59 @@ function isThemeApiFetchAbortError(err: unknown): boolean {
 	);
 }
 
+export type ThemeFileUpsert = {
+	path: string;
+	content: unknown;
+	format: string;
+};
+
+/** One file the API refused; `message` already names the line for Twig errors. */
+export type ThemeFileValidationError = {
+	path: string;
+	code: string;
+	message: string;
+};
+
+/** Size-based chunks that keep each request under proxy body-size limits. */
+function chunkUpsertBySize(upsert: ThemeFileUpsert[]): ThemeFileUpsert[][] {
+	const chunks: ThemeFileUpsert[][] = [];
+	let current: ThemeFileUpsert[] = [];
+	let currentBytes = 0;
+	for (const item of upsert) {
+		const itemBytes = Buffer.byteLength(JSON.stringify(item), "utf8");
+		if (
+			current.length > 0 &&
+			currentBytes + itemBytes > THEME_API_BATCH_MAX_BODY_BYTES
+		) {
+			chunks.push(current);
+			current = [];
+			currentBytes = 0;
+		}
+		current.push(item);
+		currentBytes += itemBytes;
+	}
+	chunks.push(current);
+	return chunks;
+}
+
+function parseValidationErrors(body: unknown): ThemeFileValidationError[] {
+	const errors =
+		body !== null && typeof body === "object"
+			? (body as { errors?: unknown }).errors
+			: undefined;
+	if (!Array.isArray(errors)) {
+		return [];
+	}
+	return errors.map((e) => {
+		const record = (e ?? {}) as Record<string, unknown>;
+		return {
+			path: typeof record.path === "string" ? record.path : "",
+			code: typeof record.code === "string" ? record.code : "",
+			message: typeof record.message === "string" ? record.message : "",
+		};
+	});
+}
+
 function encodeFilePathForUrl(filePath: string): string {
 	const posix = filePath.replace(/\\/g, "/").replace(/^\/+/, "");
 	return posix
@@ -566,29 +619,11 @@ export class ThemeApiClient {
 
 	async batchUpdateFiles(
 		installationId: string,
-		upsert: { path: string; content: unknown; format: string }[],
+		upsert: ThemeFileUpsert[],
 		toDelete: string[],
 	): Promise<void> {
 		const url = `${this.installationUrl(installationId)}/files`;
-
-		// Split upsert into size-based chunks to stay under proxy body-size limits.
-		const chunks: (typeof upsert)[] = [];
-		let current: typeof upsert = [];
-		let currentBytes = 0;
-		for (const item of upsert) {
-			const itemBytes = Buffer.byteLength(JSON.stringify(item), "utf8");
-			if (
-				current.length > 0 &&
-				currentBytes + itemBytes > THEME_API_BATCH_MAX_BODY_BYTES
-			) {
-				chunks.push(current);
-				current = [];
-				currentBytes = 0;
-			}
-			current.push(item);
-			currentBytes += itemBytes;
-		}
-		chunks.push(current);
+		const chunks = chunkUpsertBySize(upsert);
 
 		for (let i = 0; i < chunks.length; i++) {
 			// Deletions are sent only in the first chunk (path strings add negligible size).
@@ -602,6 +637,45 @@ export class ThemeApiClient {
 				body: JSON.stringify({ upsert: chunks[i], delete: chunkDelete }),
 			});
 		}
+	}
+
+	/**
+	 * Runs the server's save-time content checks (Twig syntax, section schemas,
+	 * size limits) without writing anything, and returns every failing file.
+	 * Chunked like `batchUpdateFiles`; each chunk is independent, so the lists
+	 * are simply concatenated.
+	 *
+	 * Returns `null` when the API does not expose the endpoint (HTTP 404) — the
+	 * server still checks on save, so callers can go ahead without it.
+	 */
+	async validateFiles(
+		installationId: string,
+		upsert: ThemeFileUpsert[],
+	): Promise<ThemeFileValidationError[] | null> {
+		const url = `${this.installationUrl(installationId)}/files/validate`;
+		const chunks = chunkUpsertBySize(upsert);
+
+		const errors: ThemeFileValidationError[] = [];
+		for (let i = 0; i < chunks.length; i++) {
+			const chunkLabel =
+				chunks.length > 1 ? ` (chunk ${i + 1}/${chunks.length})` : "";
+			this.log(`POST ${url}${chunkLabel}`);
+			let body: unknown;
+			try {
+				body = await this.requestJson(`Validate files${chunkLabel}`, url, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ upsert: chunks[i] }),
+				});
+			} catch (err) {
+				if (err instanceof ThemeApiError && err.status === 404) {
+					return null;
+				}
+				throw err;
+			}
+			errors.push(...parseValidationErrors(body));
+		}
+		return errors;
 	}
 
 	getMaxParallel(): number {

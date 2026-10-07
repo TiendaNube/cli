@@ -34,4 +34,5 @@ export const themeApiCmdMocks = {
 	upsertFile: vi.fn(),
 	deleteFile: vi.fn(),
 	batchUpdateFiles: vi.fn(),
+	validateFiles: vi.fn(),
 };
