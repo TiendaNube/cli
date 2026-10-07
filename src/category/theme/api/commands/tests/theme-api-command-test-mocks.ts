@@ -49,6 +49,7 @@ vi.mock("../../theme-api-client", async () => {
 				upsertFile: themeApiCmdMocks.upsertFile,
 				deleteFile: themeApiCmdMocks.deleteFile,
 				batchUpdateFiles: themeApiCmdMocks.batchUpdateFiles,
+				validateFiles: themeApiCmdMocks.validateFiles,
 			};
 		}),
 	};
@@ -134,6 +135,8 @@ export function resetThemeApiCmdMocks(): void {
 	themeApiCmdMocks.upsertFile.mockReset();
 	themeApiCmdMocks.deleteFile.mockReset();
 	themeApiCmdMocks.batchUpdateFiles.mockReset();
+	// Default: the API accepts every file.
+	themeApiCmdMocks.validateFiles.mockReset().mockResolvedValue([]);
 	getCliExecutableNameMock.mockReset();
 	getCliExecutableNameMock.mockImplementation(() => "tiendanube");
 }

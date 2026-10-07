@@ -13,6 +13,7 @@ describe("Theme command tree", () => {
 		expect(topNames.sort()).toEqual(
 			[
 				"authorize",
+				"check",
 				"clone",
 				"create",
 				"current",

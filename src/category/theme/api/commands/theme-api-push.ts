@@ -23,6 +23,7 @@ import { resolveApiCredentials } from "../theme-api-credentials";
 import { warnDeprecatedOption } from "../theme-api-deprecated-options";
 import { buildThemeDiffPlan } from "../theme-api-diff-plan";
 import { resolveExtraHeadersFromCli } from "../theme-api-extra-headers";
+import { validateThemeFiles } from "../theme-api-file-validation";
 
 type PushOptions = {
 	themeId?: string;
@@ -129,6 +130,19 @@ export class ThemeApiPushCommand {
 		for (const p of diff.toDelete) this.logger.Log(`  Deleting: ${p}`);
 		for (const p of skippedNotForked)
 			this.logger.Log(`  Skipped (not forked, but has changes): ${p}`);
+
+		if (toUpsert.length > 0) this.logger.Log("Validating files…");
+		const validation = await validateThemeFiles({
+			client,
+			themeId,
+			files: toUpsert,
+			onInvalid: (line) => this.logger.Error(line),
+		});
+		if (validation.invalidCount > 0) {
+			throw new CliError(
+				`Push aborted: ${validation.invalidCount} file(s) failed validation. Nothing was uploaded.`,
+			);
+		}
 
 		const startMs = Date.now();
 		let uploadError: string | null = null;
