@@ -200,6 +200,83 @@ describe("ThemeApiClient.requestJson", () => {
 		expect(fetchMock).toHaveBeenCalledTimes(2);
 	});
 
+	describe("on 429", () => {
+		beforeEach(() => {
+			vi.useFakeTimers();
+		});
+
+		afterEach(() => {
+			vi.useRealTimers();
+		});
+
+		function rateLimited(headers: Record<string, string>): Response {
+			return jsonResponse(
+				429,
+				{ message: "Too many requests from you" },
+				headers,
+			);
+		}
+
+		it("waits one bucket slot, reading x-rate-limit-reset as ms until the bucket drains", async () => {
+			// 40 requests drain in 20000ms, so one slot frees every 500ms.
+			fetchMock
+				.mockResolvedValueOnce(
+					rateLimited({
+						"x-rate-limit-limit": "40",
+						"x-rate-limit-reset": "20000",
+					}),
+				)
+				.mockResolvedValueOnce(jsonResponse(200, { installations: [] }));
+			const client = buildClient();
+
+			const request = client.listInstallations();
+			await vi.advanceTimersByTimeAsync(499);
+			expect(fetchMock).toHaveBeenCalledOnce();
+			await vi.advanceTimersByTimeAsync(1);
+
+			await expect(request).resolves.toEqual({ installations: [] });
+			expect(fetchMock).toHaveBeenCalledTimes(2);
+		});
+
+		it("doubles the wait on each retry, capped at the full bucket drain", async () => {
+			const headers = {
+				"x-rate-limit-limit": "40",
+				"x-rate-limit-reset": "3000",
+			};
+			fetchMock
+				.mockResolvedValueOnce(rateLimited(headers))
+				.mockResolvedValueOnce(rateLimited(headers))
+				.mockResolvedValueOnce(rateLimited(headers))
+				.mockResolvedValueOnce(rateLimited(headers))
+				.mockResolvedValueOnce(jsonResponse(200, { installations: [] }));
+			const client = buildClient();
+
+			const request = client.listInstallations();
+			// Slot is 75ms: waits are 200 (min), 200 (min), 300, then 600.
+			await vi.advanceTimersByTimeAsync(200 + 200 + 300 + 599);
+			expect(fetchMock).toHaveBeenCalledTimes(4);
+			await vi.advanceTimersByTimeAsync(1);
+
+			await expect(request).resolves.toEqual({ installations: [] });
+			expect(fetchMock).toHaveBeenCalledTimes(5);
+		});
+
+		it("waits the full drain when x-rate-limit-limit is missing", async () => {
+			fetchMock
+				.mockResolvedValueOnce(rateLimited({ "x-rate-limit-reset": "2000" }))
+				.mockResolvedValueOnce(jsonResponse(200, { installations: [] }));
+			const client = buildClient();
+
+			const request = client.listInstallations();
+			await vi.advanceTimersByTimeAsync(1999);
+			expect(fetchMock).toHaveBeenCalledOnce();
+			await vi.advanceTimersByTimeAsync(1);
+
+			await expect(request).resolves.toEqual({ installations: [] });
+			expect(fetchMock).toHaveBeenCalledTimes(2);
+		});
+	});
+
 	it("uses the API message when the body has no code (e.g. UPSTREAM_ERROR without code)", async () => {
 		fetchMock.mockResolvedValueOnce(
 			jsonResponse(502, { message: "Upstream gateway timed out." }),

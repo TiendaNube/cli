@@ -183,7 +183,7 @@ Use these commands when syncing a **sections-based theme** via the **Public API*
 | `theme diff` | Show what a push would change, without uploading |
 | `theme check` | Validate the files a push would send (Twig syntax, section schemas), without uploading |
 | `theme push` | Upload local files to a theme |
-| `theme watch` | Watch files and push via API on each change |
+| `theme watch` | Watch files and push changes via API in batches |
 | `theme fork` | Enable fork mode (full theme paths on push) |
 | `theme update` | Update a theme to a newer base-theme version, as a new draft |
 | `theme preview` | Print a shareable preview URL for the theme |
@@ -308,7 +308,7 @@ nuvemshop theme push
 
 #### `theme watch`
 
-Watch files and push via API on each file change. If browser enabled, full-reload page.
+Watch files and push changes via API. Changes are grouped: once files stop changing for a moment, everything changed since the last sync is sent together, so deleting a folder or switching branches does not send one request per file. A large sync is split into several requests sent in order; if a file is rejected (for example, deleting a file the storefront requires), the sync stops there, the error names the file, and requests already sent stay applied. If the browser is enabled, the storefront fully reloads once per sync.
 
 Hidden path segments (`.nuvem`, `.git`, etc.) are ignored, same as FTP.
 

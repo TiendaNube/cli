@@ -9,7 +9,9 @@ vi.mock("chokidar", () => ({
 	},
 }));
 
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { THEME_API_WATCH_DEBOUNCE_MS } from "../../theme-api-constants";
 import { ThemeApiWatchCommand } from "../theme-api-watch";
 import { parseWithTail, programWithThemeCommand } from "./helpers";
 import type { StderrWriteSpy } from "./stderr-write-spy";
@@ -116,6 +118,47 @@ describe("ThemeApiWatchCommand", () => {
 		expect(themeApiCmdMocks.getInstallation).toHaveBeenCalledWith("77");
 		const stderrText = stderrSpy.mock.calls.map((c) => String(c[0])).join("");
 		expect(stderrText).toContain("'--installation-id' is deprecated");
+	});
+
+	it("sends a folder delete as one batch request, not one request per file", async () => {
+		vi.useFakeTimers();
+		try {
+			themeApiCmdMocks.tryLoadResult = {
+				success: true,
+				config: { publicApiToken: "t", storeId: "1", themeId: "5" },
+			};
+			themeApiCmdMocks.getInstallation.mockResolvedValue({ forked: true });
+			themeApiCmdMocks.batchUpdateFiles.mockResolvedValue(undefined);
+			const handlers = new Map<string, (filePath: string) => void>();
+			const watcher = {
+				on: vi.fn((event: string, handler: (filePath: string) => void) => {
+					handlers.set(event, handler);
+					return watcher;
+				}),
+			};
+			chokidarWatch.mockReturnValue(watcher);
+			const program = programWithThemeCommand((c) => {
+				new ThemeApiWatchCommand().Bind(c);
+			});
+			await parseWithTail(program, ["theme", "watch", "--no-browser"]);
+
+			const unlink = handlers.get("unlink");
+			for (let i = 0; i < 50; i++) {
+				unlink?.(path.resolve(`sections/s${i}.twig`));
+			}
+			await vi.advanceTimersByTimeAsync(THEME_API_WATCH_DEBOUNCE_MS);
+
+			expect(themeApiCmdMocks.deleteFile).not.toHaveBeenCalled();
+			expect(themeApiCmdMocks.batchUpdateFiles).toHaveBeenCalledTimes(1);
+			const [themeId, upsert, toDelete] =
+				themeApiCmdMocks.batchUpdateFiles.mock.calls[0] ?? [];
+			expect(themeId).toBe("5");
+			expect(upsert).toEqual([]);
+			expect(toDelete).toHaveLength(50);
+			expect(toDelete).toContain("sections/s0.twig");
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("resolves theme via --published and watches it", async () => {

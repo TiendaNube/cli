@@ -13,10 +13,13 @@ export const THEME_API_MAX_PARALLEL = 2;
 
 export const THEME_API_MAX_ATTEMPTS_FOR_REQUESTS = 6;
 
+/** Quiet period before `theme watch` sends its pending changes as one batch. */
+export const THEME_API_WATCH_DEBOUNCE_MS = 300;
+
 /** Per-request `fetch` timeout (ms). ThemeApiClient aborts the request so the call cannot hang indefinitely. */
 export const THEME_API_REQUEST_TIMEOUT_MS = 120_000;
 
-/** HTTP 429 — rate limit; ThemeApiClient reads `x-rate-limit-reset` as seconds (delta or Unix epoch) when present. */
+/** HTTP 429 — rate limit; ThemeApiClient reads `x-rate-limit-reset` as ms until the bucket drains when present. */
 export const THEME_API_HTTP_STATUS_TOO_MANY_REQUESTS = 429;
 
 /** HTTP 503 — transient unavailability; ThemeApiClient retries with exponential backoff. */

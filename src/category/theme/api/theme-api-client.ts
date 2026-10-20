@@ -123,11 +123,13 @@ function isRetryableThemeApiHttpStatus(status: number): boolean {
 	);
 }
 
-/**
- * Seconds ≥ this are treated as Unix epoch; smaller values are delta-seconds until reset.
- * ~1e9 ≈ 2001-09-09 UTC, so typical 2020s API timestamps use the epoch branch.
- */
-const RATE_LIMIT_RESET_UNIX_EPOCH_THRESHOLD_SEC = 1_000_000_000;
+function parseNonNegativeIntHeader(
+	headers: Headers,
+	name: string,
+): number | null {
+	const value = Number.parseInt(headers.get(name)?.trim() ?? "", 10);
+	return Number.isFinite(value) && value >= 0 ? value : null;
+}
 
 function themeApiRequestRetryDelayMs(
 	status: number,
@@ -135,16 +137,22 @@ function themeApiRequestRetryDelayMs(
 	headers: Headers,
 ): number {
 	if (status === THEME_API_HTTP_STATUS_TOO_MANY_REQUESTS) {
-		const resetHeader = headers.get("x-rate-limit-reset");
-		const resetSeconds = resetHeader
-			? Number.parseInt(resetHeader.trim(), 10)
-			: Number.NaN;
-		if (Number.isFinite(resetSeconds) && resetSeconds >= 0) {
-			const delayMs =
-				resetSeconds >= RATE_LIMIT_RESET_UNIX_EPOCH_THRESHOLD_SEC
-					? resetSeconds * 1000 - Date.now()
-					: resetSeconds * 1000;
-			return Math.min(Math.max(delayMs, 200), 30_000);
+		// The reset is ms until the full bucket drains, so reset / limit is the wait for one free slot.
+		// Back off from one slot up to the full drain, so parallel workers stop colliding on the same slot.
+		const bucketDrainMs = parseNonNegativeIntHeader(
+			headers,
+			"x-rate-limit-reset",
+		);
+		if (bucketDrainMs !== null) {
+			const bucketLimit = parseNonNegativeIntHeader(
+				headers,
+				"x-rate-limit-limit",
+			);
+			const oneSlotMs = bucketLimit
+				? bucketDrainMs / bucketLimit
+				: bucketDrainMs;
+			const delayMs = Math.min(oneSlotMs * 2 ** attempt, bucketDrainMs);
+			return Math.round(Math.min(Math.max(delayMs, 200), 30_000));
 		}
 	}
 	return Math.min(1000 * 2 ** attempt, 30_000);

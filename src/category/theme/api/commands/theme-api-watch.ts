@@ -16,17 +16,23 @@ import {
 	addThemeApiTokenOption,
 	addThemePublishedOption,
 } from "../theme-api-cli-options";
-import { ThemeApiClient } from "../theme-api-client";
-import { resolveThemeApiBaseUrl } from "../theme-api-constants";
+import { ThemeApiClient, type ThemeFileUpsert } from "../theme-api-client";
+import {
+	THEME_API_WATCH_DEBOUNCE_MS,
+	resolveThemeApiBaseUrl,
+} from "../theme-api-constants";
 import { resolveApiCredentials } from "../theme-api-credentials";
 import { warnDeprecatedOption } from "../theme-api-deprecated-options";
-import { ThemeApiError } from "../theme-api-error";
 import { resolveExtraHeadersFromCli } from "../theme-api-extra-headers";
 import { readThemeFileContent } from "../theme-api-file-format";
 import {
 	canPushRelativePathWhenNotForked,
 	isInstallationForked,
 } from "../theme-api-fork-rules";
+import {
+	ThemeApiWatchQueue,
+	type ThemeWatchChange,
+} from "../theme-api-watch-queue";
 import {
 	isPushUnsupported,
 	themeUploadRelativePath,
@@ -68,15 +74,6 @@ type WatchOptions = {
 export class ThemeApiWatchCommand {
 	private logger = new CliLogger();
 	private workspace = new ThemeWorkspaceConfigManager();
-
-	private RunWithTrace = async (action: () => Promise<void>) => {
-		const startDate = new Date();
-		await action();
-		const endDate = new Date();
-		this.logger.Log(
-			`-- Time taken: ${endDate.getTime() - startDate.getTime()}ms`,
-		);
-	};
 
 	private async RunBrowserSetup(
 		storePath: string,
@@ -215,77 +212,98 @@ export class ThemeApiWatchCommand {
 			}
 		};
 
-		const pushOne = async (filePath: string, label: string) => {
-			const themeRoot = path.resolve("./");
+		const themeRoot = path.resolve("./");
+
+		// Returns the path to sync, or null when watch must leave this file alone.
+		const syncableRelativePath = (filePath: string): string | null => {
 			const rel = themeUploadRelativePath(themeRoot, filePath);
 			if (rel === null) {
-				return;
+				return null;
 			}
 			const norm = rel.replace(/\\/g, "/");
 			if (norm === "manifest.json") {
-				return;
+				return null;
 			}
 			if (isPushUnsupported(norm)) {
 				this.logger.Log(`Skipped: push is not yet supported for ${norm}`);
-				return;
+				return null;
 			}
 			if (!forked && !canPushRelativePathWhenNotForked(norm)) {
 				this.logger.Log(`Skipped (not forked): ${norm}`);
-				return;
+				return null;
 			}
-			let stats: fs.Stats;
-			try {
-				stats = fs.statSync(filePath);
-			} catch {
-				return;
-			}
-			if (stats.size === 0) {
-				return;
-			}
-			try {
-				const { format, content } = readThemeFileContent(filePath, norm);
-				this.logger.Log(`${label}: ${norm}`);
-				await client.upsertFile(themeId, norm, content, format);
-				await reloadStorefront();
-			} catch (err) {
-				const msg = err instanceof Error ? err.message : String(err);
-				this.logger.Error(`${label} failed ${norm}: ${msg}`);
-			}
+			return norm;
 		};
 
-		const deleteOne = async (filePath: string) => {
-			const themeRoot = path.resolve("./");
-			const rel = themeUploadRelativePath(themeRoot, filePath);
-			if (rel === null) {
-				return;
-			}
-			const norm = rel.replace(/\\/g, "/");
-			if (norm === "manifest.json") {
-				return;
-			}
-			if (isPushUnsupported(norm)) {
-				return;
-			}
-			if (!forked && !canPushRelativePathWhenNotForked(norm)) {
-				return;
-			}
-			try {
-				this.logger.Log(`Deleting file: ${norm}`);
-				await client.deleteFile(themeId, norm);
-				this.logger.Log(`File deleted: ${norm}`);
-				await reloadStorefront();
-			} catch (err) {
-				// File wasn't synced remotely — local delete has nothing to mirror.
-				if (err instanceof ThemeApiError && err.status === 404) {
-					return;
+		// Content is read at send time, so a file saved several times in one window uploads its last version.
+		const sendBatch = async (
+			batch: ReadonlyMap<string, ThemeWatchChange>,
+		): Promise<void> => {
+			const upsert: ThemeFileUpsert[] = [];
+			const toDelete: string[] = [];
+			for (const [norm, change] of batch) {
+				if (change === "delete") {
+					toDelete.push(norm);
+					continue;
 				}
-				const msg = err instanceof Error ? err.message : String(err);
-				this.logger.Error(`Delete failed ${norm}: ${msg}`);
+				const absolutePath = path.join(themeRoot, norm);
+				let stats: fs.Stats;
+				try {
+					stats = fs.statSync(absolutePath);
+				} catch {
+					continue;
+				}
+				if (stats.size === 0) {
+					continue;
+				}
+				try {
+					upsert.push({
+						path: norm,
+						...readThemeFileContent(absolutePath, norm),
+					});
+				} catch (err) {
+					const msg = err instanceof Error ? err.message : String(err);
+					this.logger.Error(`Read failed ${norm}: ${msg}`);
+				}
 			}
+			if (upsert.length === 0 && toDelete.length === 0) {
+				return;
+			}
+			const startMs = Date.now();
+			await client.batchUpdateFiles(themeId, upsert, toDelete);
+			this.logger.Log(
+				`Synced in ${Date.now() - startMs}ms — uploaded: ${upsert.length}, deleted: ${toDelete.length}`,
+			);
+			await reloadStorefront();
+		};
+
+		const queue = new ThemeApiWatchQueue({
+			debounceMs: THEME_API_WATCH_DEBOUNCE_MS,
+			sendBatch,
+			onBatchError: (err, requeuedPathCount) => {
+				const msg = err instanceof Error ? err.message : String(err);
+				const retryNote =
+					requeuedPathCount > 0
+						? ` Retrying ${requeuedPathCount} file(s) with the next sync.`
+						: " The batch was not fully synced; some changes may already be applied. Save the files again to retry.";
+				this.logger.Error(`Sync failed: ${msg}.${retryNote}`);
+			},
+		});
+
+		const enqueueEvent = (
+			filePath: string,
+			change: ThemeWatchChange,
+			label: string,
+		) => {
+			const norm = syncableRelativePath(filePath);
+			if (norm === null) {
+				return;
+			}
+			this.logger.Log(`${label}: ${norm}`);
+			queue.enqueue(norm, change);
 		};
 
 		this.logger.Log("Monitoring for changes in theme files");
-		const themeRoot = path.resolve("./");
 		const watcher = chokidar.watch(themeRoot, {
 			ignored: (filePath: string) =>
 				themeUploadRelativePath(themeRoot, filePath) === null,
@@ -303,20 +321,14 @@ export class ThemeApiWatchCommand {
 			const msg = err instanceof Error ? err.message : String(err);
 			this.logger.Error(`Watcher error: ${msg}`);
 		});
-		watcher.on("add", async (filePath) => {
-			await this.RunWithTrace(async () => {
-				await pushOne(filePath, "File added");
-			});
+		watcher.on("add", (filePath) => {
+			enqueueEvent(filePath, "upsert", "File added");
 		});
-		watcher.on("change", async (filePath) => {
-			await this.RunWithTrace(async () => {
-				await pushOne(filePath, "File modified");
-			});
+		watcher.on("change", (filePath) => {
+			enqueueEvent(filePath, "upsert", "File modified");
 		});
-		watcher.on("unlink", async (filePath) => {
-			await this.RunWithTrace(async () => {
-				await deleteOne(filePath);
-			});
+		watcher.on("unlink", (filePath) => {
+			enqueueEvent(filePath, "delete", "File deleted");
 		});
 		this.logger.Log("Press Ctrl+C to stop");
 	}
