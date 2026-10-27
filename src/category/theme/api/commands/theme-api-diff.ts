@@ -4,6 +4,7 @@ import { runAction } from "../../../../cli-action";
 import { CliError } from "../../../../cli-action";
 import { CliLogger } from "../../../../cli-logger";
 import { writeJsonOutput } from "../../../../json-output";
+import { authAliasOption } from "../../../auth/cli/auth-cli-options";
 import { resolveThemeIdOrFail } from "../../theme-id-resolver";
 import { ThemeWorkspaceConfigManager } from "../../theme-workspace-config-manager";
 import {
@@ -37,6 +38,7 @@ type DiffOptions = {
 	themeId?: string;
 	published?: boolean;
 	token?: string;
+	alias?: string;
 	apiUrl?: string;
 	header?: string[];
 	json: boolean;
@@ -88,6 +90,7 @@ export class ThemeApiDiffCommand {
 	private async Execute(options: DiffOptions, command: Command): Promise<void> {
 		const loaded = resolveApiCredentials({
 			token: options.token,
+			alias: options.alias,
 			workspace: this.workspace,
 		});
 		if (!loaded.success) {
@@ -106,6 +109,7 @@ export class ThemeApiDiffCommand {
 			apiBaseUrl: baseUrl,
 			publicApiToken: config.publicApiToken,
 			storeId: config.storeId,
+			credential: loaded,
 			// JSON mode keeps stdout to the payload alone; the client logs verbose
 			// HTTP lines through `console.log`, which would corrupt it.
 			verbose: options.v && !options.json,
@@ -298,6 +302,7 @@ export class ThemeApiDiffCommand {
 			);
 		addThemePublishedOption(diffCmd);
 		addThemeApiTokenOption(diffCmd);
+		diffCmd.addOption(authAliasOption());
 		addHiddenThemeApiUrlOption(diffCmd);
 		addHiddenThemeApiHeaderOption(diffCmd);
 		diffCmd

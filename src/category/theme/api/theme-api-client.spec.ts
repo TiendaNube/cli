@@ -91,6 +91,53 @@ describe("ThemeApiClient.requestJson", () => {
 		}
 	});
 
+	it.each([401, 403])(
+		"names the refused alias and how to sign in again on HTTP %i",
+		async (status) => {
+			fetchMock.mockResolvedValueOnce(
+				jsonResponse(status, { message: "Invalid access token" }),
+			);
+			const client = new ThemeApiClient({
+				apiBaseUrl: "https://api.example.com",
+				publicApiToken: "token-xyz",
+				storeId: "42",
+				credential: { source: "workspace-alias", alias: "acme" },
+			});
+
+			await expect(client.listInstallations()).rejects.toThrow(
+				/failed \(HTTP \d+\): Invalid access token\n {2}→ The store refused the credential "acme"\. Sign in again: \S+ auth login --alias acme$/,
+			);
+		},
+	);
+
+	it("points a refused --token at a fresh token, not at an alias", async () => {
+		fetchMock.mockResolvedValueOnce(jsonResponse(401, { message: "nope" }));
+		const client = new ThemeApiClient({
+			apiBaseUrl: "https://api.example.com",
+			publicApiToken: "token-xyz",
+			storeId: "42",
+			credential: { source: "token" },
+		});
+
+		await expect(client.listInstallations()).rejects.toThrow(
+			/The store refused the --token value\. Get a fresh token by signing in again: \S+ auth login$/,
+		);
+	});
+
+	it("adds no credential hint to errors other than 401 and 403", async () => {
+		fetchMock.mockResolvedValueOnce(jsonResponse(404, { message: "missing" }));
+		const client = new ThemeApiClient({
+			apiBaseUrl: "https://api.example.com",
+			publicApiToken: "token-xyz",
+			storeId: "42",
+			credential: { source: "alias-flag", alias: "acme" },
+		});
+
+		await expect(client.listInstallations()).rejects.toThrow(
+			/^List installations failed \(HTTP 404\): missing$/,
+		);
+	});
+
 	it("falls back to the API message when the code has no CLI hint", async () => {
 		fetchMock.mockResolvedValueOnce(
 			jsonResponse(404, {

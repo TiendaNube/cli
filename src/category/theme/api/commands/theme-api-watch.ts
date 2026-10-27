@@ -7,6 +7,7 @@ import puppeteer, { type Browser, type Page } from "puppeteer";
 import { CliError, runAction } from "../../../../cli-action";
 import { getCliExecutableName } from "../../../../cli-executable-name";
 import { CliLogger } from "../../../../cli-logger";
+import { authAliasOption } from "../../../auth/cli/auth-cli-options";
 import { resolveThemeIdOrFail } from "../../theme-id-resolver";
 import { ThemeWorkspaceConfigManager } from "../../theme-workspace-config-manager";
 import { crossFamilyWatchRefusal } from "../../theme-workspace-sync-origin";
@@ -64,6 +65,7 @@ type WatchOptions = {
 	installationId?: string;
 	published?: boolean;
 	token?: string;
+	alias?: string;
 	apiUrl?: string;
 	header?: string[];
 	/** When `--no-browser` is passed, Commander sets this to `false`. */
@@ -113,6 +115,7 @@ export class ThemeApiWatchCommand {
 	): Promise<void> {
 		const loaded = resolveApiCredentials({
 			token: options.token,
+			alias: options.alias,
 			workspace: this.workspace,
 		});
 		if (!loaded.success) {
@@ -134,6 +137,7 @@ export class ThemeApiWatchCommand {
 			apiBaseUrl: baseUrl,
 			publicApiToken: config.publicApiToken,
 			storeId: config.storeId,
+			credential: loaded,
 			verbose: options.v,
 			extraHeaders,
 		});
@@ -179,7 +183,7 @@ export class ThemeApiWatchCommand {
 		} else if (!storeUrl) {
 			const cli = getCliExecutableName();
 			this.logger.Log(
-				`API watch only (no browser). Run ${cli} theme authorize to save your storefront URL in .nuvem and enable auto-reload here.`,
+				`API watch only (no browser). Run ${cli} auth login to save your storefront URL and enable auto-reload here.`,
 			);
 		} else {
 			this.logger.Log(
@@ -351,6 +355,7 @@ export class ThemeApiWatchCommand {
 			);
 		addThemePublishedOption(watchCmd);
 		addThemeApiTokenOption(watchCmd);
+		watchCmd.addOption(authAliasOption());
 		addHiddenThemeApiUrlOption(watchCmd);
 		addHiddenThemeApiHeaderOption(watchCmd);
 		watchCmd

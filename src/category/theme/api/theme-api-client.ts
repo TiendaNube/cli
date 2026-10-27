@@ -1,6 +1,10 @@
 import packageJson from "../../../../package.json" with { type: "json" };
 import { CliLogger } from "../../../cli-logger";
 import {
+	type RunCredential,
+	refusedCredentialStep,
+} from "../../auth/domain/auth-credential-source";
+import {
 	THEME_API_BATCH_MAX_BODY_BYTES,
 	THEME_API_HTTP_STATUS_SERVICE_UNAVAILABLE,
 	THEME_API_HTTP_STATUS_TOO_MANY_REQUESTS,
@@ -20,6 +24,8 @@ export type ThemeApiClientOptions = {
 	storeId: string;
 	verbose?: boolean;
 	extraHeaders?: Record<string, string>;
+	/** Lets a 401/403 name the credential that was refused and how to repair it. */
+	credential?: RunCredential;
 };
 
 type RequestOptions = {
@@ -207,6 +213,7 @@ export class ThemeApiClient {
 	private verbose: boolean;
 	private userAgent: string;
 	private extraHeaders: Record<string, string>;
+	private credential: RunCredential | undefined;
 
 	public constructor(options: ThemeApiClientOptions) {
 		this.apiBaseUrl = normalizeApiBaseUrl(options.apiBaseUrl);
@@ -214,6 +221,7 @@ export class ThemeApiClient {
 		this.storeId = options.storeId;
 		this.verbose = options.verbose ?? false;
 		this.extraHeaders = options.extraHeaders ?? {};
+		this.credential = options.credential;
 		const name = packageJson.name.replace(/^@[^/]+\//, "");
 		this.userAgent = `${name}/${packageJson.version} (https://github.com/TiendaNube/nube-cli)`;
 	}
@@ -386,6 +394,9 @@ export class ThemeApiClient {
 				code,
 				apiMessage: message,
 				body,
+				...((status === 401 || status === 403) && this.credential
+					? { nextStep: refusedCredentialStep("api", this.credential) }
+					: {}),
 			});
 		}
 		return body as T;

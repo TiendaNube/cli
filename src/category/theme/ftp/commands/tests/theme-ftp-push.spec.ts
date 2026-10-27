@@ -23,13 +23,17 @@ describe("ThemeFtpPushCommand", () => {
 		resetFtpCmdMocks();
 	});
 
-	it("errors when configuration is not set", async () => {
+	it("reports the resolver error when no credential resolves", async () => {
+		ftpCmdMocks.tryLoadResult = {
+			success: false,
+			error: "No credentials for this folder.",
+		};
 		const program = programWithFtpSubcommand((c) => {
 			new ThemeFtpPushCommand().Bind(c);
 		});
 		await parseWithTail(program, ["ftp", "push", "-y"]);
 		expect(ftpCmdMocks.error).toHaveBeenCalledWith(
-			"Store configuration not found. Please run tiendanube theme ftp setup first.",
+			"No credentials for this folder.",
 		);
 	});
 

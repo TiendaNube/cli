@@ -3,7 +3,6 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StderrWriteSpy } from "./api/commands/tests/stderr-write-spy";
-import { ThemeFtpConfigManager } from "./ftp/theme-ftp-config-manager";
 import {
 	ThemeWorkspaceConfigManager,
 	mergeWorkspaceDocuments,
@@ -145,7 +144,6 @@ describe("mergeWorkspaceDocuments", () => {
 	it("merges theme-api shallowly and preserves unspecified keys", () => {
 		const merged = mergeWorkspaceDocuments(
 			{
-				themeManagement: "api",
 				"theme-api": {
 					publicApiToken: "a",
 					storeId: "1",
@@ -177,10 +175,10 @@ describe("ThemeWorkspaceConfigManager API/FTP guards", () => {
 		}
 	});
 
-	it("serves both families when both sections are present", () => {
-		// themeManagement is advisory: the section each loader needs decides. This
-		// is the case the flag used to block — API credentials refused because the
-		// flag said "ftp", with a valid token sitting in the file.
+	it("serves both families when both sections are present, whatever a legacy themeManagement says", () => {
+		// The section each loader needs decides. A legacy file may still carry
+		// the old themeManagement flag; it is ignored on read and dropped on the
+		// next write.
 		tmpFile = path.join(os.tmpdir(), `nube-ws-${Date.now()}.cfg`);
 		const m = new ThemeWorkspaceConfigManager(tmpFile);
 		const both = {
@@ -196,13 +194,23 @@ describe("ThemeWorkspaceConfigManager API/FTP guards", () => {
 			},
 		};
 
-		for (const flag of ["api", "ftp", undefined] as const) {
-			m.writeWorkspace(
-				flag === undefined ? both : { ...both, themeManagement: flag },
+		for (const flag of ["api", "ftp", undefined]) {
+			fs.writeFileSync(
+				tmpFile,
+				Buffer.from(
+					JSON.stringify({ ...both, themeManagement: flag }),
+					"utf8",
+				).toString("base64"),
 			);
 			expect(m.TryLoadApiConfig().success, `flag=${flag}`).toBe(true);
 			expect(m.TryLoadFtpConfig().success, `flag=${flag}`).toBe(true);
 		}
+
+		m.writeWorkspace(m.readWorkspace());
+		const onDisk = JSON.parse(
+			Buffer.from(fs.readFileSync(tmpFile, "utf8"), "base64").toString("utf8"),
+		);
+		expect(onDisk).not.toHaveProperty("themeManagement");
 	});
 
 	it("names the missing family instead of claiming the directory is the other one", () => {
@@ -211,7 +219,6 @@ describe("ThemeWorkspaceConfigManager API/FTP guards", () => {
 
 		// FTP credentials only: an API command should say what is missing.
 		m.writeWorkspace({
-			themeManagement: "ftp",
 			"theme-ftp": {
 				ftp: {
 					ftpServer: "s",
@@ -225,20 +232,19 @@ describe("ThemeWorkspaceConfigManager API/FTP guards", () => {
 		const api = m.TryLoadApiConfig();
 		expect(api.success).toBe(false);
 		if (!api.success) {
-			expect(api.error).toMatch(/no Public API credentials/i);
-			expect(api.error).toMatch(/theme authorize/);
+			expect(api.error).toMatch(/only has FTP credentials/i);
+			expect(api.error).toMatch(/auth login/);
 		}
 
 		// API credentials only: the mirror image.
 		m.writeWorkspace({
-			themeManagement: "api",
 			"theme-api": { publicApiToken: "t", storeId: "1" },
 		});
 		const ftp = m.TryLoadFtpConfig();
 		expect(ftp.success).toBe(false);
 		if (!ftp.success) {
-			expect(ftp.error).toMatch(/no FTP credentials/i);
-			expect(ftp.error).toMatch(/theme ftp setup/);
+			expect(ftp.error).toMatch(/only has Public API credentials/i);
+			expect(ftp.error).toMatch(/auth ftp/);
 		}
 	});
 
@@ -248,7 +254,6 @@ describe("ThemeWorkspaceConfigManager API/FTP guards", () => {
 		tmpFile = path.join(os.tmpdir(), `nube-ws2-${Date.now()}.cfg`);
 		const m = new ThemeWorkspaceConfigManager(tmpFile);
 		m.writeWorkspace({
-			themeManagement: "api",
 			"theme-api": { publicApiToken: "t", storeId: "1" },
 		});
 
@@ -267,46 +272,71 @@ describe("ThemeWorkspaceConfigManager API/FTP guards", () => {
 		tmpFile = path.join(os.tmpdir(), `nube-ws2b-${Date.now()}.cfg`);
 		const m = new ThemeWorkspaceConfigManager(tmpFile);
 		m.writeWorkspace({
-			themeManagement: "api",
 			"theme-api": { publicApiToken: "t", storeId: "1" },
 		});
 		expect(m.readLastSync()).toBeUndefined();
 	});
 
-	it("keeps writing themeManagement, which an older CLI still gates on", () => {
-		// The loaders here ignore the flag, but a CLI installed before this change
-		// refuses a workspace without it. `ftp setup` goes through the real
-		// ThemeFtpConfigManager.Save on purpose: theme-ftp-setup.spec mocks Save,
-		// so nothing else in the suite pins what actually lands in the file.
+	it("records no themeManagement on a linked folder, which serves both families", () => {
 		tmpFile = path.join(os.tmpdir(), `nube-ws-compat-${Date.now()}.cfg`);
 		const workspace = new ThemeWorkspaceConfigManager(tmpFile);
 
-		// What `theme authorize` writes — see theme-api-setup-execute.ts.
-		workspace.mergeWorkspace({
-			themeManagement: "api",
-			"theme-api": { publicApiToken: "t", storeId: "1" },
-		});
-
-		new ThemeFtpConfigManager(tmpFile).Save({
-			ftp: {
-				ftpServer: "s",
-				ftpUsername: "u",
-				ftpPassword: "p",
-				verbose: false,
-			},
-			storeUrl: "https://x",
-		});
+		workspace.linkAlias("acme");
 
 		const onDisk = JSON.parse(
 			Buffer.from(fs.readFileSync(tmpFile, "utf8"), "base64").toString("utf8"),
 		);
-		expect(onDisk.themeManagement).toBe("ftp");
-		expect(onDisk["theme-api"]).toBeDefined();
-		expect(onDisk["theme-ftp"]).toBeDefined();
+		expect(onDisk).toEqual({ alias: "acme" });
+	});
 
-		// And the point of the whole change: both families load anyway.
-		expect(workspace.TryLoadApiConfig().success).toBe(true);
-		expect(workspace.TryLoadFtpConfig().success).toBe(true);
+	it("linkAlias drops every inline secret and any API host, and keeps the per-folder state", () => {
+		tmpFile = path.join(os.tmpdir(), `nube-ws-link-${Date.now()}.cfg`);
+		const workspace = new ThemeWorkspaceConfigManager(tmpFile);
+		workspace.writeWorkspace({
+			lastSync: "api",
+			"theme-api": {
+				publicApiToken: "secret-token",
+				storeId: "1",
+				storeUrl: "https://acme.example",
+				themeId: "42",
+				apiBaseUrl: "https://api.example",
+			},
+			"theme-ftp": {
+				ftp: {
+					ftpServer: "s",
+					ftpUsername: "u",
+					ftpPassword: "secret-password",
+					verbose: false,
+				},
+				storeUrl: "https://acme.example",
+			},
+		});
+
+		workspace.linkAlias("acme");
+
+		expect(workspace.readWorkspace()).toEqual({
+			alias: "acme",
+			lastSync: "api",
+			// The host goes too: it would receive the stored token.
+			"theme-api": { themeId: "42" },
+		});
+		const raw = Buffer.from(
+			fs.readFileSync(tmpFile, "utf8"),
+			"base64",
+		).toString("utf8");
+		expect(raw).not.toContain("secret");
+	});
+
+	it("linkAlias forgets the theme id when the folder changes store", () => {
+		tmpFile = path.join(os.tmpdir(), `nube-ws-link2-${Date.now()}.cfg`);
+		const workspace = new ThemeWorkspaceConfigManager(tmpFile);
+		workspace.writeWorkspace({ alias: "old", "theme-api": { themeId: "42" } });
+
+		workspace.linkAlias("other", { keepThemeId: false });
+
+		expect(workspace.readWorkspace()).toEqual({
+			alias: "other",
+		});
 	});
 
 	it("migrates legacy installationId from .nuvem to themeId on read", () => {
@@ -375,7 +405,7 @@ describe("ThemeWorkspaceConfigManager legacy .nube migration", () => {
 
 		expect(fs.existsSync(".nube")).toBe(false);
 		expect(fs.readFileSync(".nuvem", "utf8")).toBe(encodedDoc);
-		expect(m.readWorkspace().themeManagement).toBe("api");
+		expect(m.readWorkspace()["theme-api"]?.storeId).toBe("1");
 		expect(stderrText()).toContain("renamed");
 	});
 
@@ -383,10 +413,10 @@ describe("ThemeWorkspaceConfigManager legacy .nube migration", () => {
 		fs.writeFileSync(".nube", encodedDoc);
 
 		const m = new ThemeWorkspaceConfigManager();
-		m.writeWorkspace({ themeManagement: "ftp" });
+		m.writeWorkspace({ lastSync: "ftp" });
 
 		expect(fs.existsSync(".nube")).toBe(false);
-		expect(m.readWorkspace().themeManagement).toBe("ftp");
+		expect(m.readWorkspace().lastSync).toBe("ftp");
 		expect(stderrText()).toContain("renamed");
 	});
 

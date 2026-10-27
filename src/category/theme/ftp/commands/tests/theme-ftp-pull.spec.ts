@@ -6,6 +6,7 @@ import {
 	type FsReaddirSyncSpy,
 	spyFsReaddirSyncMockNames,
 } from "../../../api/commands/tests/fs-readdir-sync-spy";
+import { ThemeFtpTools } from "../../theme-ftp-tools";
 import { ThemeFtpPullCommand } from "../theme-ftp-pull";
 import { parseWithTail, programWithFtpSubcommand } from "./helpers";
 import {
@@ -36,15 +37,34 @@ describe("ThemeFtpPullCommand", () => {
 		readdirSpy.mockRestore();
 	});
 
-	it("errors when configuration is not set", async () => {
-		ftpCmdMocks.isSet = false;
+	it("reports the resolver error when no credential resolves", async () => {
+		ftpCmdMocks.tryLoadResult = {
+			success: false,
+			error: "No credentials for this folder.",
+		};
 		const program = programWithFtpSubcommand((c) => {
 			new ThemeFtpPullCommand().Bind(c);
 		});
 		await parseWithTail(program, ["ftp", "pull", "-y"]);
 		expect(ftpCmdMocks.error).toHaveBeenCalledWith(
-			"Store configuration not found. Please run tiendanube theme ftp setup first.",
+			"No credentials for this folder.",
 		);
+	});
+
+	it("resolves the credential, --alias included, before deleting anything", async () => {
+		ftpCmdMocks.tryLoadResult = {
+			success: false,
+			error: "No credentials for this folder.",
+		};
+		const cleanSpy = vi.spyOn(ThemeFtpTools, "cleanThemeWorkspace");
+		const program = programWithFtpSubcommand((c) => {
+			new ThemeFtpPullCommand().Bind(c);
+		});
+		await parseWithTail(program, ["ftp", "pull", "-y", "--alias", "classic"]);
+		expect(ftpCmdMocks.tryLoad).toHaveBeenCalledWith({ alias: "classic" });
+		expect(cleanSpy).not.toHaveBeenCalled();
+		expect(ftpCmdMocks.downloadAll).not.toHaveBeenCalled();
+		cleanSpy.mockRestore();
 	});
 
 	it("logs completion when download succeeds", async () => {

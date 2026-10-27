@@ -1,15 +1,16 @@
 import path from "node:path";
 import type { Command } from "commander";
 import { CliError, runAction } from "../../../../cli-action";
-import { getCliExecutableName } from "../../../../cli-executable-name";
 import { CliLogger } from "../../../../cli-logger";
 import { writeJsonOutput } from "../../../../json-output";
+import { authAliasOption } from "../../../auth/cli/auth-cli-options";
 import { ThemeFtpClient } from "../theme-ftp-client";
 import type { ThemeFtpClientConfig } from "../theme-ftp-client-config";
 import { ThemeFtpConfigManager } from "../theme-ftp-config-manager";
 import { ThemeFtpTools } from "../theme-ftp-tools";
 
 type DiffOptions = {
+	alias?: string;
 	json: boolean;
 	force: boolean;
 	v: boolean;
@@ -85,13 +86,7 @@ export class ThemeFtpDiffCommand {
 	private config = new ThemeFtpConfigManager();
 
 	private async Execute(options: DiffOptions): Promise<void> {
-		if (!this.config.IsSet()) {
-			throw new CliError(
-				`Store configuration not found. Please run ${getCliExecutableName()} theme ftp setup first.`,
-			);
-		}
-
-		const loaded = this.config.TryLoad();
+		const loaded = this.config.TryLoad({ alias: options.alias });
 		if (!loaded.success) {
 			throw new CliError(loaded.error);
 		}
@@ -100,7 +95,7 @@ export class ThemeFtpDiffCommand {
 		// JSON mode keeps stdout to the payload alone; basic-ftp's verbose tracing
 		// writes there too, which would corrupt it.
 		ftpConfig.verbose = options.v && !options.json;
-		const client = new ThemeFtpClient(ftpConfig);
+		const client = new ThemeFtpClient(ftpConfig, loaded);
 
 		const diff = await client.ComputeDiff(options.force, {
 			onNotice: options.json ? () => {} : (m) => this.logger.Log(m),
@@ -145,6 +140,7 @@ export class ThemeFtpDiffCommand {
 				"Preview a forced push, which uploads every file regardless of comparison",
 				false,
 			)
+			.addOption(authAliasOption())
 			.option("-v", "Enable verbose logging", false)
 			.action(runAction((options: DiffOptions) => this.Execute(options)));
 	}

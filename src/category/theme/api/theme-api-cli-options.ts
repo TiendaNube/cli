@@ -3,13 +3,13 @@ import { Option } from "commander";
 
 /**
  * Registers `--token <token>` so the command can authenticate with a Base64
- * payload (same shape as `theme authorize`) instead of `.nuvem`. Visible in
+ * payload (same shape as `auth login --token`) instead of a stored credential. Visible in
  * `--help`.
  */
 export function addThemeApiTokenOption(command: Command): void {
 	command.option(
 		"--token <token>",
-		"Authentication token (same format as 'theme authorize'); overrides .nuvem for this run only",
+		"Authentication token (same format as 'auth login --token'); overrides any stored credential for this run only",
 	);
 }
 

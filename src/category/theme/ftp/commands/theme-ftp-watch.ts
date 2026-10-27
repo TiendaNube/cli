@@ -4,8 +4,8 @@ import chokidar from "chokidar";
 import type { Command } from "commander";
 import puppeteer, { type Browser, type Page } from "puppeteer";
 import { CliError, runAction } from "../../../../cli-action";
-import { getCliExecutableName } from "../../../../cli-executable-name";
 import { CliLogger } from "../../../../cli-logger";
+import { authAliasOption } from "../../../auth/cli/auth-cli-options";
 import { crossFamilyWatchRefusal } from "../../theme-workspace-sync-origin";
 import { ThemeFtpClient } from "../theme-ftp-client";
 import type { ThemeFtpClientConfig } from "../theme-ftp-client-config";
@@ -55,16 +55,11 @@ export class ThemeFtpWatchCommand {
 	}
 
 	private async Execute(options: {
+		alias?: string;
 		v: boolean;
 		browser: boolean;
 	}): Promise<void> {
-		if (!this.configurationManager.IsSet()) {
-			throw new CliError(
-				`Store configuration not found. Please run ${getCliExecutableName()} theme ftp setup first.`,
-			);
-		}
-
-		const loaded = this.configurationManager.TryLoad();
+		const loaded = this.configurationManager.TryLoad({ alias: options.alias });
 		if (!loaded.success) {
 			throw new CliError(loaded.error);
 		}
@@ -83,7 +78,7 @@ export class ThemeFtpWatchCommand {
 
 		const ftpConfig: ThemeFtpClientConfig = loaded.config.ftp;
 		ftpConfig.verbose = options.v;
-		const client = new ThemeFtpClient(ftpConfig);
+		const client = new ThemeFtpClient(ftpConfig, loaded);
 
 		const storePath = loaded.config.storeUrl;
 		const useBrowser = options.browser !== false;
@@ -200,9 +195,10 @@ export class ThemeFtpWatchCommand {
 				"--no-browser",
 				"Do not open the store in a browser with automatic reloading, only watch for file changes",
 			)
+			.addOption(authAliasOption())
 			.option("-v", "Enable verbose logging", false)
 			.action(
-				runAction((options: { v: boolean; browser: boolean }) =>
+				runAction((options: { alias?: string; v: boolean; browser: boolean }) =>
 					this.Execute(options),
 				),
 			);

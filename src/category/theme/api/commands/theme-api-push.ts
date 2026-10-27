@@ -5,6 +5,7 @@ import { CliError, runAction } from "../../../../cli-action";
 import { CliInteraction } from "../../../../cli-interaction";
 import { CliLogger } from "../../../../cli-logger";
 import { confirmOrAbort } from "../../../../interactivity";
+import { authAliasOption } from "../../../auth/cli/auth-cli-options";
 import { resolveThemeIdOrFail } from "../../theme-id-resolver";
 import { ThemeWorkspaceConfigManager } from "../../theme-workspace-config-manager";
 import {
@@ -30,6 +31,7 @@ type PushOptions = {
 	installationId?: string;
 	published?: boolean;
 	token?: string;
+	alias?: string;
 	apiUrl?: string;
 	header?: string[];
 	v: boolean;
@@ -44,6 +46,7 @@ export class ThemeApiPushCommand {
 	private async Execute(options: PushOptions, command: Command): Promise<void> {
 		const loaded = resolveApiCredentials({
 			token: options.token,
+			alias: options.alias,
 			workspace: this.workspace,
 		});
 		if (!loaded.success) {
@@ -65,6 +68,7 @@ export class ThemeApiPushCommand {
 			apiBaseUrl: baseUrl,
 			publicApiToken: config.publicApiToken,
 			storeId: config.storeId,
+			credential: loaded,
 			verbose: options.v,
 			extraHeaders,
 		});
@@ -189,6 +193,7 @@ export class ThemeApiPushCommand {
 			);
 		addThemePublishedOption(pushCmd);
 		addThemeApiTokenOption(pushCmd);
+		pushCmd.addOption(authAliasOption());
 		addHiddenThemeApiUrlOption(pushCmd);
 		addHiddenThemeApiHeaderOption(pushCmd);
 		pushCmd

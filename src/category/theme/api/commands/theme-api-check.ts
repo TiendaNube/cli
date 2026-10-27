@@ -2,6 +2,7 @@ import path from "node:path";
 import type { Command } from "commander";
 import { CliError, runAction } from "../../../../cli-action";
 import { CliLogger } from "../../../../cli-logger";
+import { authAliasOption } from "../../../auth/cli/auth-cli-options";
 import { resolveThemeIdOrFail } from "../../theme-id-resolver";
 import { ThemeWorkspaceConfigManager } from "../../theme-workspace-config-manager";
 import {
@@ -21,6 +22,7 @@ type CheckOptions = {
 	themeId?: string;
 	published?: boolean;
 	token?: string;
+	alias?: string;
 	apiUrl?: string;
 	header?: string[];
 	v: boolean;
@@ -36,6 +38,7 @@ export class ThemeApiCheckCommand {
 	): Promise<void> {
 		const loaded = resolveApiCredentials({
 			token: options.token,
+			alias: options.alias,
 			workspace: this.workspace,
 		});
 		if (!loaded.success) {
@@ -54,6 +57,7 @@ export class ThemeApiCheckCommand {
 			apiBaseUrl: baseUrl,
 			publicApiToken: config.publicApiToken,
 			storeId: config.storeId,
+			credential: loaded,
 			verbose: options.v,
 			extraHeaders,
 		});
@@ -116,6 +120,7 @@ export class ThemeApiCheckCommand {
 			);
 		addThemePublishedOption(checkCmd);
 		addThemeApiTokenOption(checkCmd);
+		checkCmd.addOption(authAliasOption());
 		addHiddenThemeApiUrlOption(checkCmd);
 		addHiddenThemeApiHeaderOption(checkCmd);
 		checkCmd

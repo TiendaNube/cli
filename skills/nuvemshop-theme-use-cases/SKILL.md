@@ -182,7 +182,7 @@ already paid and there is nothing to decide.
 Then:
 
 1. The user opens FTP in the store admin, under Design → code editor, and runs
-   `nuvemshop theme ftp setup` in their terminal. Credentials never come to you.
+   `nuvemshop auth ftp` in their terminal. Credentials never come to you.
 2. `nuvemshop theme ftp pull`, then **commit the result to version control before
    editing anything**. This is the only thing that will let you undo a mistake —
    see below.
@@ -221,9 +221,9 @@ is a much larger change than the one being asked for. Say the limitation.
 
 ## Both families
 
-### The workspace has API and FTP credentials
+### The store has API and FTP credentials
 
-That is supported: one directory can list themes over the API and sync a classic
+That is supported: one alias can hold both, so one directory can list themes over the API and sync a classic
 theme over FTP. Nothing in the CLI stops you from pushing a tree that was pulled
 by the other family, though, and the two file layouts are not interchangeable — so
 keep one directory per theme unless you have a reason not to, and pull with the
@@ -240,11 +240,13 @@ moved. It is slow, so run it when there is reason to suspect this, not by habit.
 
 ### A fresh machine, or a directory that is not set up yet
 
-`nuvemshop theme current` answers "is this workspace configured?" without touching
-credentials. If it is not, the user runs `nuvemshop theme authorize` (Public API)
-or `nuvemshop theme ftp setup` (FTP) in their own terminal — leave both with them,
-because a token or password that passes through the conversation ends up in the
-transcript.
+Credentials are stored once per machine, so a new directory usually needs no
+sign-in at all. `nuvemshop auth list --json` shows what is stored, without any
+secret; if the store is there and `ok`, run `nuvemshop auth link --alias <alias>`
+in the new directory yourself. Only when it is missing or `rejected` does the user
+run `nuvemshop auth login` (Public API) or `nuvemshop auth ftp` (FTP) in
+their own terminal — leave both with them, because a token or password that passes
+through the conversation ends up in the transcript.
 
 ### Translations
 
@@ -292,10 +294,9 @@ production. There is no version of this flow that catches a regression before
 shoppers do — say that when you propose it, and note that undoing it means pushing
 the previous commit, which only exists if it was made before editing.
 
-Measuring a classic theme also needs Public API credentials in the same workspace,
-because the audit resolves the store URL from the API config; FTP credentials
-alone are not enough. If they are missing, say that `nuvemshop theme authorize`
-would add them and unlock the measurement, and offer to carry on without it. It is
+Measuring a classic theme also needs a Public API credential for the store,
+because the audit goes through the Public API; FTP credentials alone are not
+enough. If it is missing, say that `nuvemshop auth login` would add one and unlock the measurement, and offer to carry on without it. It is
 a useful extra, not a prerequisite for fixing a header.
 
 ### Reading the result, and knowing when to stop

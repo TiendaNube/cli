@@ -1,9 +1,9 @@
 import type { Command } from "commander";
 import { CliError, runAction } from "../../../../cli-action";
-import { getCliExecutableName } from "../../../../cli-executable-name";
 import { CliInteraction } from "../../../../cli-interaction";
 import { CliLogger } from "../../../../cli-logger";
 import { confirmOrAbort, yesFlagSet } from "../../../../interactivity";
+import { authAliasOption } from "../../../auth/cli/auth-cli-options";
 import {
 	crossFamilyForcedNotice,
 	crossFamilyPushRefusal,
@@ -13,6 +13,7 @@ import type { ThemeFtpClientConfig } from "../theme-ftp-client-config";
 import { ThemeFtpConfigManager } from "../theme-ftp-config-manager";
 
 type PushOptions = {
+	alias?: string;
 	v: boolean;
 	force: boolean;
 };
@@ -23,12 +24,6 @@ export class ThemeFtpPushCommand {
 	private config = new ThemeFtpConfigManager();
 
 	private async Execute(options: PushOptions, command: Command): Promise<void> {
-		if (!this.config.IsSet()) {
-			throw new CliError(
-				`Store configuration not found. Please run ${getCliExecutableName()} theme ftp setup first.`,
-			);
-		}
-
 		// A workspace may hold both credential families, so the local files could
 		// have come from an API pull. Uploading those over FTP would send a
 		// sections-based tree to a classic theme.
@@ -40,13 +35,13 @@ export class ThemeFtpPushCommand {
 			}
 		}
 
-		const loaded = this.config.TryLoad();
+		const loaded = this.config.TryLoad({ alias: options.alias });
 		if (!loaded.success) {
 			throw new CliError(loaded.error);
 		}
 		const ftpConfig: ThemeFtpClientConfig = loaded.config.ftp;
 		ftpConfig.verbose = options.v;
-		const client = new ThemeFtpClient(ftpConfig);
+		const client = new ThemeFtpClient(ftpConfig, loaded);
 
 		// Default path: diff before asking, so the confirmation states what will
 		// actually happen instead of a generic warning. FTP writes to the published
@@ -106,6 +101,7 @@ export class ThemeFtpPushCommand {
 			.description(
 				"Upload theme files from the current directory to the FTP server",
 			)
+			.addOption(authAliasOption())
 			.option("-v", "Enable verbose logging", false)
 			.option(
 				"--force",

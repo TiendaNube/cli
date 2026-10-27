@@ -1,10 +1,10 @@
-/** Default Public API host (BR); override with `.nuvem` `theme-api.apiBaseUrl` or hidden `--api-url` on commands. */
+/** Default Public API host (BR); override with hidden `--api-url` or the credential's `apiBaseUrl` (a legacy `.nuvem` host applies only to its own inline token). */
 export const DEFAULT_PUBLIC_API_BASE_URL = "https://api.nuvemshop.com.br";
 
-/** Path segment for GET store (Public API); used by `theme authorize` to resolve storefront URL. */
+/** Path segment for GET store (Public API); used by `auth login` to resolve the storefront URL. */
 export const THEME_API_STORE_RESOURCE_VERSION = "2025-03";
 
-/** Default URL opened by `theme authorize` (CLI auth in browser). Override with hidden `--authorize-url` for internal tests. */
+/** Default URL opened by `auth login` (CLI auth in browser). Override with hidden `--authorize-url` for internal tests. */
 export const DEFAULT_THEME_AUTHORIZE_URL =
 	"https://brand-editor.tiendanube.com/api/auth/cli/start";
 

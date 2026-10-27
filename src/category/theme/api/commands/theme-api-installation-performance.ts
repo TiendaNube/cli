@@ -4,6 +4,7 @@ import { CliError, runAction } from "../../../../cli-action";
 import { getCliExecutableName } from "../../../../cli-executable-name";
 import { CliLogger } from "../../../../cli-logger";
 import { writeJsonOutput } from "../../../../json-output";
+import { authAliasOption } from "../../../auth/cli/auth-cli-options";
 import { resolveThemeIdOrFail } from "../../theme-id-resolver";
 import { ThemeWorkspaceConfigManager } from "../../theme-workspace-config-manager";
 import {
@@ -33,6 +34,7 @@ type PerformanceOptions = {
 	themeId?: string;
 	published?: boolean;
 	token?: string;
+	alias?: string;
 	apiUrl?: string;
 	header?: string[];
 	json: boolean;
@@ -50,6 +52,7 @@ export class ThemeApiInstallationPerformanceCommand {
 	): Promise<void> {
 		const loaded = resolveApiCredentials({
 			token: options.token,
+			alias: options.alias,
 			workspace: this.workspace,
 		});
 		if (!loaded.success) {
@@ -73,6 +76,7 @@ export class ThemeApiInstallationPerformanceCommand {
 					apiBaseUrl: baseUrl,
 					publicApiToken: config.publicApiToken,
 					storeId: config.storeId,
+					credential: loaded,
 					verbose: false,
 					extraHeaders,
 				});
@@ -83,7 +87,7 @@ export class ThemeApiInstallationPerformanceCommand {
 		if (!storeUrl) {
 			const cli = getCliExecutableName();
 			throw new CliError(
-				`No store_url in .nuvem: re-run ${cli} theme authorize to save your storefront URL (e.g. https://your-store.nuvemshop.com.br).`,
+				`No storefront URL for this credential: re-run ${cli} auth login to save it (e.g. https://your-store.nuvemshop.com.br).`,
 			);
 		}
 
@@ -144,6 +148,7 @@ export class ThemeApiInstallationPerformanceCommand {
 			);
 		addThemePublishedOption(performanceCmd);
 		addThemeApiTokenOption(performanceCmd);
+		performanceCmd.addOption(authAliasOption());
 		addHiddenThemeApiUrlOption(performanceCmd);
 		addHiddenThemeApiHeaderOption(performanceCmd);
 		performanceCmd

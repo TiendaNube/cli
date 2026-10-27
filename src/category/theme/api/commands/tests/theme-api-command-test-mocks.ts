@@ -23,6 +23,26 @@ vi.mock("../../../theme-workspace-config-manager", () => ({
 	}),
 }));
 
+// Keeps command specs off the real per-user credentials file: resolution reads
+// `themeApiCmdMocks.identities`, and a legacy migration is a recorded no-op.
+vi.mock("../../../../auth/infra/auth-credentials-store", () => ({
+	// biome-ignore lint/complexity/useArrowFunction: vitest 4 constructs mocks called with `new`, and an arrow implementation throws "is not a constructor"
+	AuthCredentialsStore: vi.fn().mockImplementation(function () {
+		return {
+			FilePath: "/tmp/credentials.json",
+			list: () => themeApiCmdMocks.identities,
+			get: (alias: string) =>
+				themeApiCmdMocks.identities.find((entry) => entry.alias === alias),
+			touch: themeApiCmdMocks.touchIdentity,
+			defaultAlias: () => undefined,
+		};
+	}),
+}));
+
+vi.mock("../../../../auth/domain/auth-legacy-migration", () => ({
+	migrateLegacyWorkspaceCredentials: themeApiCmdMocks.migrateLegacy,
+}));
+
 vi.mock("../../theme-api-client", async () => {
 	const actual = await vi.importActual<typeof import("../../theme-api-client")>(
 		"../../theme-api-client",
@@ -108,6 +128,9 @@ export function resetThemeApiCmdMocks(): void {
 	themeApiCmdMocks.tryLoadResult = { success: false, error: "no config" };
 	themeApiCmdMocks.isSet = false;
 	themeApiCmdMocks.readWorkspaceReturn = {};
+	themeApiCmdMocks.identities = [];
+	themeApiCmdMocks.touchIdentity.mockClear();
+	themeApiCmdMocks.migrateLegacy.mockReset();
 	themeApiCmdMocks.mergeWorkspace.mockClear();
 	themeApiCmdMocks.recordLastSync.mockClear();
 	themeApiCmdMocks.lastSync = undefined;

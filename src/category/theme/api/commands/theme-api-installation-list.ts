@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import { CliError, runAction } from "../../../../cli-action";
 import { CliLogger } from "../../../../cli-logger";
 import { writeJsonOutput } from "../../../../json-output";
+import { authAliasOption } from "../../../auth/cli/auth-cli-options";
 import { ThemeWorkspaceConfigManager } from "../../theme-workspace-config-manager";
 import {
 	addHiddenThemeApiHeaderOption,
@@ -22,6 +23,7 @@ import {
 
 type ListOptions = {
 	token?: string;
+	alias?: string;
 	apiUrl?: string;
 	header?: string[];
 	json: boolean;
@@ -35,6 +37,7 @@ export class ThemeApiInstallationListCommand {
 	private async Execute(options: ListOptions): Promise<void> {
 		const loaded = resolveApiCredentials({
 			token: options.token,
+			alias: options.alias,
 			workspace: this.workspace,
 		});
 		if (!loaded.success) {
@@ -53,6 +56,7 @@ export class ThemeApiInstallationListCommand {
 			apiBaseUrl: baseUrl,
 			publicApiToken: config.publicApiToken,
 			storeId: config.storeId,
+			credential: loaded,
 			verbose: options.v,
 			extraHeaders,
 		});
@@ -87,6 +91,7 @@ export class ThemeApiInstallationListCommand {
 			.command("list")
 			.description("List the themes available for the current store");
 		addThemeApiTokenOption(listCmd);
+		listCmd.addOption(authAliasOption());
 		addHiddenThemeApiUrlOption(listCmd);
 		addHiddenThemeApiHeaderOption(listCmd);
 		listCmd

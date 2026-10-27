@@ -2,10 +2,11 @@ import fs from "node:fs";
 import { platform } from "node:process";
 import { Chalk } from "chalk";
 import { getCliExecutableName } from "../../cli-executable-name";
+import { noCredentialsError } from "../auth/domain/auth-credential-source";
 import type { ThemeFtpConfig } from "./ftp/theme-ftp-config";
 import type {
 	ThemeApiConfig,
-	ThemeManagement,
+	ThemeApiWorkspaceSection,
 	ThemeSyncFamily,
 	ThemeWorkspaceDocument,
 } from "./theme-workspace-types";
@@ -121,13 +122,6 @@ function migrateLegacyWorkspaceFile(): void {
 	);
 }
 
-function parseManagement(value: unknown): ThemeManagement | undefined {
-	if (value === "ftp" || value === "api") {
-		return value;
-	}
-	return undefined;
-}
-
 function parseSyncFamily(value: unknown): ThemeSyncFamily | undefined {
 	if (value === "ftp" || value === "api") {
 		return value;
@@ -141,8 +135,8 @@ export function mergeWorkspaceDocuments(
 ): ThemeWorkspaceDocument {
 	const next: ThemeWorkspaceDocument = { ...existing };
 
-	if (patch.themeManagement !== undefined) {
-		next.themeManagement = patch.themeManagement;
+	if (patch.alias !== undefined) {
+		next.alias = patch.alias;
 	}
 	if (patch.lastSync !== undefined) {
 		next.lastSync = patch.lastSync;
@@ -220,9 +214,8 @@ export class ThemeWorkspaceConfigManager {
 		}
 
 		const doc: ThemeWorkspaceDocument = {};
-		const tm = parseManagement(parsed.themeManagement);
-		if (tm !== undefined) {
-			doc.themeManagement = tm;
+		if (typeof parsed.alias === "string" && parsed.alias.trim() !== "") {
+			doc.alias = parsed.alias.trim();
 		}
 		const ls = parseSyncFamily(parsed.lastSync);
 		if (ls !== undefined) {
@@ -235,7 +228,7 @@ export class ThemeWorkspaceConfigManager {
 			const themeApi = parsed["theme-api"];
 			doc["theme-api"] = (
 				isRecord(themeApi) ? migrateLegacyThemeApiFields(themeApi) : themeApi
-			) as ThemeApiConfig;
+			) as ThemeApiWorkspaceSection;
 		}
 		return doc;
 	}
@@ -243,9 +236,7 @@ export class ThemeWorkspaceConfigManager {
 	writeWorkspace(doc: ThemeWorkspaceDocument): void {
 		this.ensureMigrated();
 		const json = JSON.stringify({
-			...(doc.themeManagement !== undefined
-				? { themeManagement: doc.themeManagement }
-				: {}),
+			...(doc.alias !== undefined ? { alias: doc.alias } : {}),
 			...(doc.lastSync !== undefined ? { lastSync: doc.lastSync } : {}),
 			...(doc["theme-ftp"] !== undefined
 				? { "theme-ftp": doc["theme-ftp"] }
@@ -272,6 +263,30 @@ export class ThemeWorkspaceConfigManager {
 		this.writeWorkspace(merged);
 	}
 
+	/**
+	 * Points this folder at a `credentials.json` alias and drops every secret it
+	 * held inline, along with any API host: a host in `.nuvem` would receive the
+	 * stored token, and the folder may be an untrusted clone. Keeps which family
+	 * last pulled, and the theme id unless the folder is changing store, where
+	 * that id would name another store's theme.
+	 */
+	linkAlias(
+		alias: string,
+		options: { keepThemeId: boolean } = { keepThemeId: true },
+	): void {
+		const current = this.IsSet() ? this.readWorkspace() : {};
+		const themeId = options.keepThemeId
+			? current["theme-api"]?.themeId
+			: undefined;
+		const themeApi: ThemeApiWorkspaceSection =
+			themeId !== undefined ? { themeId } : {};
+		this.writeWorkspace({
+			alias,
+			...(current.lastSync !== undefined ? { lastSync: current.lastSync } : {}),
+			...(Object.keys(themeApi).length > 0 ? { "theme-api": themeApi } : {}),
+		});
+	}
+
 	TryLoadFtpConfig():
 		| { success: true; config: ThemeFtpConfig }
 		| { success: false; error: string } {
@@ -279,12 +294,12 @@ export class ThemeWorkspaceConfigManager {
 			if (!this.IsSet()) {
 				return {
 					success: false,
-					error: `Store configuration not found. Please run ${getCliExecutableName()} theme ftp setup first.`,
+					error: noCredentialsError("ftp"),
 				};
 			}
 			const doc = this.readWorkspace();
-			// Resolved on the presence of the section this family needs, not on
-			// `themeManagement`: a workspace holding both sections serves both.
+			// Resolved on the presence of the section this family needs, so a
+			// workspace holding both sections serves both.
 			const themeFtp = doc["theme-ftp"];
 			if (themeFtp === undefined) {
 				const bin = getCliExecutableName();
@@ -292,14 +307,14 @@ export class ThemeWorkspaceConfigManager {
 					success: false,
 					error:
 						doc["theme-api"] !== undefined
-							? `This workspace has Public API credentials but no FTP credentials. Run ${bin} theme ftp setup to add them, or use ${bin} theme pull / theme push instead.`
-							: `Missing required "theme-ftp" key in "${this.configFilePath}". Run ${bin} theme ftp setup first.`,
+							? `This folder only has Public API credentials, and FTP commands need FTP ones.\n  → Add them: ${bin} auth ftp\n  → Or use the Public API commands: ${bin} theme pull / ${bin} theme push`
+							: `Missing required "theme-ftp" key in "${this.configFilePath}". Run ${bin} auth ftp first.`,
 				};
 			}
 			if (!isValidThemeFtpConfig(themeFtp)) {
 				return {
 					success: false,
-					error: `Invalid "theme-ftp" configuration in "${this.configFilePath}": expected { ftp: { ftpServer, ftpUsername, ftpPassword, verbose }, storeUrl } with string and boolean fields as produced by ${getCliExecutableName()} theme ftp setup.`,
+					error: `Invalid "theme-ftp" configuration in "${this.configFilePath}": expected { ftp: { ftpServer, ftpUsername, ftpPassword, verbose }, storeUrl } with string and boolean fields as produced by ${getCliExecutableName()} auth ftp.`,
 				};
 			}
 			return { success: true, config: themeFtp };
@@ -319,12 +334,12 @@ export class ThemeWorkspaceConfigManager {
 			if (!this.IsSet()) {
 				return {
 					success: false,
-					error: `Store configuration not found. Please run ${getCliExecutableName()} theme authorize first.`,
+					error: noCredentialsError("api"),
 				};
 			}
 			const doc = this.readWorkspace();
-			// Resolved on the presence of the section this family needs, not on
-			// `themeManagement`: a workspace holding both sections serves both.
+			// Resolved on the presence of the section this family needs, so a
+			// workspace holding both sections serves both.
 			const themeApi = doc["theme-api"];
 			if (themeApi === undefined) {
 				const bin = getCliExecutableName();
@@ -332,14 +347,14 @@ export class ThemeWorkspaceConfigManager {
 					success: false,
 					error:
 						doc["theme-ftp"] !== undefined
-							? `This workspace has FTP credentials but no Public API credentials. Run ${bin} theme authorize to add them, or use ${bin} theme ftp pull / theme ftp push instead.`
-							: `Missing required "theme-api" key in "${this.configFilePath}". Run ${bin} theme authorize first.`,
+							? `This folder only has FTP credentials, and this command needs Public API ones.\n  → Add them: ${bin} auth login\n  → Or use the FTP commands: ${bin} theme ftp pull / ${bin} theme ftp push`
+							: `Missing required "theme-api" key in "${this.configFilePath}". Run ${bin} auth login first.`,
 				};
 			}
 			if (!isValidThemeApiConfig(themeApi)) {
 				return {
 					success: false,
-					error: `Invalid "theme-api" in "${this.configFilePath}": expected publicApiToken and storeId (strings) as produced by ${getCliExecutableName()} theme authorize.`,
+					error: `Invalid "theme-api" in "${this.configFilePath}": expected publicApiToken and storeId (strings) as produced by ${getCliExecutableName()} auth login.`,
 				};
 			}
 			return {

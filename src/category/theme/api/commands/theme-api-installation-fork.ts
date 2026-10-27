@@ -5,6 +5,7 @@ import { CliInteraction } from "../../../../cli-interaction";
 import { CliLogger } from "../../../../cli-logger";
 import { assertConfirmable, confirmOrAbort } from "../../../../interactivity";
 import { writeJsonOutput } from "../../../../json-output";
+import { authAliasOption } from "../../../auth/cli/auth-cli-options";
 import { resolveThemeIdOrFail } from "../../theme-id-resolver";
 import { formatThemeLabel } from "../../theme-title-resolver";
 import { ThemeWorkspaceConfigManager } from "../../theme-workspace-config-manager";
@@ -25,6 +26,7 @@ type ForkOptions = {
 	installationId?: string;
 	published?: boolean;
 	token?: string;
+	alias?: string;
 	apiUrl?: string;
 	header?: string[];
 	json: boolean;
@@ -39,6 +41,7 @@ export class ThemeApiInstallationForkCommand {
 	private async Execute(options: ForkOptions, command: Command): Promise<void> {
 		const loaded = resolveApiCredentials({
 			token: options.token,
+			alias: options.alias,
 			workspace: this.workspace,
 		});
 		if (!loaded.success) {
@@ -60,6 +63,7 @@ export class ThemeApiInstallationForkCommand {
 			apiBaseUrl: baseUrl,
 			publicApiToken: config.publicApiToken,
 			storeId: config.storeId,
+			credential: loaded,
 			verbose: options.v,
 			extraHeaders,
 		});
@@ -115,6 +119,7 @@ export class ThemeApiInstallationForkCommand {
 			);
 		addThemePublishedOption(forkCmd);
 		addThemeApiTokenOption(forkCmd);
+		forkCmd.addOption(authAliasOption());
 		addHiddenThemeApiUrlOption(forkCmd);
 		addHiddenThemeApiHeaderOption(forkCmd);
 		forkCmd

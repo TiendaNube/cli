@@ -2,12 +2,14 @@ import type { Command } from "commander";
 import { CliError, runAction } from "../../../../cli-action";
 import { getCliExecutableName } from "../../../../cli-executable-name";
 import { CliLogger } from "../../../../cli-logger";
+import { authAliasOption } from "../../../auth/cli/auth-cli-options";
 import { ThemeWorkspaceConfigManager } from "../../theme-workspace-config-manager";
 import { addThemeApiTokenOption } from "../theme-api-cli-options";
 import { resolveApiCredentials } from "../theme-api-credentials";
 
 type CurrentOptions = {
 	token?: string;
+	alias?: string;
 };
 
 export class ThemeApiInstallationCurrentCommand {
@@ -17,6 +19,7 @@ export class ThemeApiInstallationCurrentCommand {
 	private async Execute(options: CurrentOptions): Promise<void> {
 		const loaded = resolveApiCredentials({
 			token: options.token,
+			alias: options.alias,
 			workspace: this.workspace,
 		});
 		if (!loaded.success) {
@@ -38,6 +41,7 @@ export class ThemeApiInstallationCurrentCommand {
 			.command("current")
 			.description("Show the theme linked to the current folder");
 		addThemeApiTokenOption(currentCommand);
+		currentCommand.addOption(authAliasOption());
 		currentCommand.action(
 			runAction((opts: CurrentOptions) => this.Execute(opts)),
 		);

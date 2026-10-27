@@ -26,13 +26,17 @@ describe("ThemeFtpWatchCommand", () => {
 		chokidarWatch.mockReset();
 	});
 
-	it("errors when configuration is not set", async () => {
+	it("reports the resolver error when no credential resolves", async () => {
+		ftpCmdMocks.tryLoadResult = {
+			success: false,
+			error: "No credentials for this folder.",
+		};
 		const program = programWithFtpSubcommand((c) => {
 			new ThemeFtpWatchCommand().Bind(c);
 		});
 		await parseWithTail(program, ["ftp", "watch", "--no-browser"]);
 		expect(ftpCmdMocks.error).toHaveBeenCalledWith(
-			"Store configuration not found. Please run tiendanube theme ftp setup first.",
+			"No credentials for this folder.",
 		);
 		expect(chokidarWatch).not.toHaveBeenCalled();
 	});
