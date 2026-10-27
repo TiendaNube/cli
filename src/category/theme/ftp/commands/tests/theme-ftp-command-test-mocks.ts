@@ -6,8 +6,10 @@ vi.mock("../../theme-ftp-config-manager", () => ({
 	ThemeFtpConfigManager: vi.fn().mockImplementation(function () {
 		return {
 			IsSet: () => ftpCmdMocks.isSet,
-			TryLoad: () => ftpCmdMocks.tryLoadResult,
-			Save: ftpCmdMocks.save,
+			TryLoad: (options?: { alias?: string }) => {
+				ftpCmdMocks.tryLoad(options);
+				return ftpCmdMocks.tryLoadResult;
+			},
 			MarkPulled: ftpCmdMocks.markPulled,
 			LastSync: () => ftpCmdMocks.lastSync,
 		};
@@ -78,7 +80,7 @@ export function resetFtpCmdMocks(): void {
 	forceNonInteractiveTestEnv();
 	ftpCmdMocks.isSet = false;
 	ftpCmdMocks.tryLoadResult = { success: false, error: "bad" };
-	ftpCmdMocks.save.mockClear();
+	ftpCmdMocks.tryLoad.mockClear();
 	ftpCmdMocks.markPulled.mockClear();
 	ftpCmdMocks.lastSync = undefined;
 	ftpCmdMocks.log.mockClear();

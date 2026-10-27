@@ -15,8 +15,13 @@ export type DecodeCliAuthTokenResult =
 	| { ok: false; message: string };
 
 export type FetchStorefrontUrlResult =
-	| { ok: true; storeUrl: string }
-	| { ok: false; message: string };
+	| {
+			ok: true;
+			storeUrl: string;
+			/** Platform-assigned host, which survives a custom-domain change. */
+			originalDomain?: string;
+	  }
+	| { ok: false; message: string; httpStatus?: number };
 
 function themeApiCliUserAgent(): string {
 	const name = packageJson.name.replace(/^@[^/]+\//, "");
@@ -199,6 +204,7 @@ export async function fetchStorefrontUrlFromPublicApi(options: {
 				ok: false,
 				message:
 					`Could not load store from Public API (HTTP ${res.status}): ${snippet}`.trim(),
+				httpStatus: res.status,
 			};
 		}
 
@@ -211,7 +217,17 @@ export async function fetchStorefrontUrlFromPublicApi(options: {
 			};
 		}
 
-		return { ok: true, storeUrl };
+		const original =
+			typeof body === "object" &&
+			body !== null &&
+			typeof (body as Record<string, unknown>).original_domain === "string"
+				? String((body as Record<string, unknown>).original_domain).trim()
+				: "";
+		return {
+			ok: true,
+			storeUrl,
+			...(original !== "" ? { originalDomain: original } : {}),
+		};
 	} catch (err) {
 		if (err instanceof DOMException && err.name === "AbortError") {
 			return {

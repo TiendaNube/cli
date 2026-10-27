@@ -1,4 +1,5 @@
 import { vi } from "vitest";
+import type { Identity } from "../../../../auth/domain/auth-credentials-types";
 
 /** Mutable state + spies (not `vi.hoisted` — safe to export). */
 export const themeApiCmdMocks = {
@@ -11,6 +12,10 @@ export const themeApiCmdMocks = {
 	recordLastSync: vi.fn(),
 	isSet: false,
 	readWorkspaceReturn: {} as Record<string, unknown>,
+	/** What the mocked `credentials.json` holds. */
+	identities: [] as Identity[],
+	touchIdentity: vi.fn(),
+	migrateLegacy: vi.fn(),
 	log: vi.fn(),
 	error: vi.fn(),
 	confirm: vi.fn().mockResolvedValue(true),

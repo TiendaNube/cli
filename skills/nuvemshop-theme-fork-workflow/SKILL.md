@@ -1,6 +1,6 @@
 ---
 name: nuvemshop-theme-fork-workflow
-description: End-to-end workflow for developing a sections-based Nuvemshop/Tiendanube theme with the CLI - authorize, pick or create a theme, pull, edit, diff, push, preview, publish. Use for any theme whose is_sectionable is true (Ipanema). For classic themes read nuvemshop-theme-ftp-workflow instead; if you are not sure which applies, read nuvemshop-theme-use-cases.
+description: End-to-end workflow for developing a sections-based Nuvemshop/Tiendanube theme with the CLI - sign in, pick or create a theme, pull, edit, diff, push, preview, publish. Use for any theme whose is_sectionable is true (Ipanema). For classic themes read nuvemshop-theme-ftp-workflow instead; if you are not sure which applies, read nuvemshop-theme-use-cases.
 license: MIT
 compatibility: Requires the Nuvemshop/Tiendanube CLI (@tiendanube/cli) on PATH
 ---
@@ -39,21 +39,28 @@ Two things that trip people up:
 - **A store can hold both kinds at once**, so check the specific theme rather than
   assuming the store is one or the other.
 
-## The workspace file: `.nuvem`
+## Where the credentials live
 
-Every theme workspace is a directory containing a `.nuvem` file holding the store
-credentials and the last pulled theme ID. It is **per-directory**, not a global
-config in your home folder.
+A store's credentials are stored **once per machine**, under an alias, in a
+per-user `credentials.json` (in `~/.config/tiendanube-cli/`, or
+`%APPDATA%\tiendanube-cli\` on Windows). A theme workspace is a directory whose
+`.nuvem` file names the alias it uses and records the last pulled theme ID. A
+`.nuvem` written by an older CLI held the token itself; the first command run in
+that folder moves it into `credentials.json` and leaves only the alias behind.
 
-**Never read, open, decode or print `.nuvem`.** It holds the store's access
-token. Confirming the file exists is fine, and `nuvemshop theme current` answers
-"is this workspace configured?" without touching its contents — nothing in this
-workflow needs them.
+**Never read, open, decode or print `.nuvem` or `credentials.json`.** The
+second one holds every store's access token. `nuvemshop auth list` answers "which
+stores are signed in, and which one does this folder use?" without printing any
+secret, and `nuvemshop theme current` answers "is this workspace configured?" —
+nothing in this workflow needs the files' contents.
 
-Two consequences of it being per-directory:
+What that means for a command:
 
-- Commands act on the current working directory. If one reports that the store
-  configuration was not found, that directory is not authorized yet.
+- It acts on the current working directory. If it reports there are no
+  credentials for this folder, the folder is not linked to a stored credential
+  yet (Step 1).
+- `--alias <alias>` on any theme command uses that stored credential for one run,
+  whatever the folder is linked to.
 - `--theme-id` defaults to the last pulled theme recorded in `.nuvem`. Pass it
   explicitly whenever the target matters.
 
@@ -91,23 +98,37 @@ tell the user exactly what the command will change, get their explicit yes, and
 only then re-run it with `-y`. Never add `-y` on your own initiative to get past
 the abort, and never add it to a command the user has not agreed to.
 
-## Step 1 — Authorize, in the user's terminal (one time per workspace)
+## Step 1 — Sign in once, then link each folder
 
-Ask the user to run:
+First check what is already stored:
 
 ```bash
-nuvemshop theme authorize
+nuvemshop auth list --json
 ```
 
-It opens a browser, they sign in, and the CLI writes the credentials into
-`.nuvem` itself. Nothing comes back to you, and nothing should: a token pasted
-into the conversation would be stored in the transcript, so the whole exchange
-stays between the user, their browser and their terminal.
+**The store is already listed** (with `api` among its `tokens` and an `ok`
+status): link the workspace to it yourself. No browser, no secret:
+
+```bash
+nuvemshop auth link --alias <alias>
+```
+
+**It is not listed, or its status is `rejected`:** ask the user to run this in
+their own terminal:
+
+```bash
+nuvemshop auth login
+```
+
+It opens a browser, they sign in, and the CLI stores the credential and links
+the folder it ran in. Nothing comes back to you, and nothing should: a token
+pasted into the conversation would be stored in the transcript, so the whole
+exchange stays between the user, their browser and their terminal.
 
 Never ask the user for a token, and never offer to store one for them. (There is
 a `--token` flag for CI, but it is theirs to use, not yours to request.) If a
-command reports the workspace is not authorized, relay that and point them at the
-command above.
+command reports the folder has no credentials, relay that and follow the two
+cases above.
 
 ## Step 2 — Pick a theme, or create one
 
@@ -280,7 +301,7 @@ theme id explicitly rather than defaulting to a guess.
 It has one side effect that is easy to miss: FTP access belongs to whichever theme
 is published, so publishing a different one cuts off anybody working over FTP on
 the theme that was published before. They will need fresh FTP credentials from the
-admin panel and a re-run of `nuvemshop theme ftp setup`. Mention it if the store
+admin panel and a re-run of `nuvemshop auth ftp`. Mention it if the store
 has a classic theme in play.
 
 ## Commands that do not belong in a tool call
@@ -290,25 +311,28 @@ has a classic theme in play.
   call hangs the call rather than doing anything useful. When a user wants an
   auto-syncing dev loop, tell them to run it in a terminal alongside the session.
   Same for `nuvemshop theme ftp watch`.
-- **`nuvemshop theme authorize` and `nuvemshop theme ftp setup`** — the two
-  commands that establish credentials. Both prompt for secrets, and a token or
-  password that passes through the conversation ends up in the transcript. Leave
-  them in the user's terminal.
+- **`nuvemshop auth login` and `nuvemshop auth ftp`** — the two commands
+  that acquire credentials. Both take secrets, and a token or password that
+  passes through the conversation ends up in the transcript. Leave them in the
+  user's terminal. (`auth link` and `auth list` handle no secret; those are
+  yours to run.)
 - The deprecated `theme installation *` command group; use the flat commands.
 
 ## When authentication fails
 
-Tell the user to verify their credentials and re-run `nuvemshop theme authorize`
-in their terminal — or `nuvemshop theme ftp setup` if the failure came from an FTP
+`nuvemshop auth list` shows which stored credential is `rejected`. Tell the user
+to re-run `nuvemshop auth login --alias <alias>` in their terminal — or
+`nuvemshop auth ftp --alias <alias>` if the failure came from an FTP
 command. Then stop: **do not retry the call**, because a retry loop on bad
 credentials burns time and hides the cause.
 
-Never try to diagnose or repair credentials by inspecting or editing `.nuvem`.
+Never try to diagnose or repair credentials by inspecting or editing `.nuvem` or
+`credentials.json`.
 
 ## Reading errors
 
 The CLI's error messages are written for humans and usually name the next action
-verbatim — for example that a workspace needs `theme authorize` first, or that a
+verbatim — for example that a folder needs `auth link` or `auth login` first, or that a
 file was skipped because the theme is not forked. Pass them on to the user rather
 than paraphrasing, and follow the action they name.
 

@@ -57,7 +57,7 @@ describe("ThemeApiInstallationPreviewCommand", () => {
 		});
 		await parseWithTail(program, ["theme", "preview"]);
 		expect(themeApiCmdMocks.error).toHaveBeenCalledWith(
-			"No store_url in .nuvem: re-run tiendanube theme authorize to save your storefront URL (e.g. https://your-store.nuvemshop.com.br).",
+			"No storefront URL for this credential: re-run tiendanube auth login to save it (e.g. https://your-store.nuvemshop.com.br).",
 		);
 	});
 

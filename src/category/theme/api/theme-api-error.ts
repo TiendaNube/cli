@@ -1,3 +1,4 @@
+import { withNextSteps } from "../../auth/cli/auth-messages";
 import { THEME_API_ERROR_DETAIL_MAX_CHARS } from "./theme-api-constants";
 
 /** Stable error codes returned by the Theme Installations API. */
@@ -125,6 +126,8 @@ export type ThemeApiErrorInit = {
 	code: string | null;
 	apiMessage: string;
 	body: unknown;
+	/** Appended as a `→` line, e.g. how to repair a refused credential. */
+	nextStep?: string;
 };
 
 /**
@@ -150,8 +153,11 @@ export class ThemeApiError extends Error {
 			filePath !== null && !init.operation.includes(filePath)
 				? ` (${filePath})`
 				: "";
+		const summary = `${init.operation} failed (HTTP ${init.status}): ${detail}${fileSuffix}`;
 		super(
-			`${init.operation} failed (HTTP ${init.status}): ${detail}${fileSuffix}`,
+			init.nextStep === undefined
+				? summary
+				: withNextSteps(summary, init.nextStep),
 		);
 		this.name = "ThemeApiError";
 		this.operation = init.operation;

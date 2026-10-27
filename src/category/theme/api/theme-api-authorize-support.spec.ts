@@ -128,6 +128,7 @@ describe("fetchStorefrontUrlFromPublicApi", () => {
 		expect(r).toEqual({
 			ok: true,
 			storeUrl,
+			originalDomain: "mock-api-store.example.test",
 		});
 		expect(fetchFn).toHaveBeenCalledWith(
 			"https://api.fixture-cli.example/2025-03/7070102/store",

@@ -1,6 +1,6 @@
 {
 	"name": "@tiendanube/cli",
-	"version": "2.5.1",
+	"version": "3.0.0",
 	"description": "A command-line interface tool to interact with Nuvemshop/Tiendanube services.",
 	"main": "./dist/cli.js",
 	"scripts": {
@@ -31,7 +31,7 @@
 		"url": "git+https://github.com/TiendaNube/cli.git"
 	},
 	"engines": {
-		"node": ">=24.15.0"
+		"node": ">=24.22.1"
 	},
 	"keywords": [
 		"tiendanube",
@@ -48,7 +48,7 @@
 	"type": "module",
 	"dependencies": {
 		"@clack/prompts": "^1.5.1",
-		"basic-ftp": "^6.0.0",
+		"basic-ftp": "^6.2.1",
 		"chalk": "^5.6.2",
 		"chokidar": "^5.0.0",
 		"commander": "^14.0.3",
@@ -59,11 +59,14 @@
 		"update-notifier": "^7.3.1"
 	},
 	"overrides": {
-		"esbuild": "^0.28.1"
+		"esbuild": "^0.28.1",
+		"get-uri": {
+			"basic-ftp": "$basic-ftp"
+		}
 	},
 	"devDependencies": {
 		"@biomejs/biome": "1.8.3",
-		"@types/node": "^25.5.0",
+		"@types/node": "^24.19.2",
 		"@types/update-notifier": "^6.0.8",
 		"@vitest/coverage-v8": "^4.1.11",
 		"husky": "^9.1.7",

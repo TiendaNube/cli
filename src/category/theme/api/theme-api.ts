@@ -1,5 +1,5 @@
 import type { Command } from "commander";
-import { ThemeApiAuthorizeCommand } from "./commands/theme-api-authorize";
+import { AuthLoginCommand } from "../../auth/commands/auth-login";
 import { ThemeApiCheckCommand } from "./commands/theme-api-check";
 import { ThemeApiDiffCommand } from "./commands/theme-api-diff";
 import { ThemeApiInstallationCloneCommand } from "./commands/theme-api-installation-clone";
@@ -21,7 +21,10 @@ import { ThemeApiDeprecatedInstallationCommands } from "./theme-api-deprecated-i
 export class ThemeApiCommands {
 	/** Register Public API subcommands on an existing `theme` command. */
 	Bind(theme: Command): void {
-		new ThemeApiAuthorizeCommand().Bind(theme);
+		new AuthLoginCommand().Bind(theme, {
+			name: "authorize",
+			deprecatedFor: "auth login",
+		});
 		new ThemeApiInstallationListCommand().Bind(theme);
 		new ThemeApiInstallationCreateCommand().Bind(theme);
 		new ThemeApiInstallationCloneCommand().Bind(theme);

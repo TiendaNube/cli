@@ -83,11 +83,7 @@ describe("ThemeApiPullCommand", () => {
 		expect(themeApiCmdMocks.mergeWorkspace).toHaveBeenCalledWith({
 			// Records the origin so a later FTP push refuses this tree.
 			lastSync: "api",
-			"theme-api": {
-				publicApiToken: "t",
-				storeId: "1",
-				themeId: "4542075",
-			},
+			"theme-api": { themeId: "4542075" },
 		});
 		mkdirSpy.mockRestore();
 		writeSpy.mockRestore();

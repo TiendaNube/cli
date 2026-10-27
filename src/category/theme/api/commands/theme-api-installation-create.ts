@@ -4,6 +4,7 @@ import { CliError, runAction } from "../../../../cli-action";
 import { CliLogger } from "../../../../cli-logger";
 import { addRequiredOption } from "../../../../cli-required-option";
 import { writeJsonOutput } from "../../../../json-output";
+import { authAliasOption } from "../../../auth/cli/auth-cli-options";
 import { resolveThemeLabel } from "../../theme-title-resolver";
 import { ThemeWorkspaceConfigManager } from "../../theme-workspace-config-manager";
 import {
@@ -28,6 +29,7 @@ type CreateOptions = {
 	title: string;
 	baseThemeVariant?: string;
 	token?: string;
+	alias?: string;
 	apiUrl?: string;
 	header?: string[];
 	json: boolean;
@@ -41,6 +43,7 @@ export class ThemeApiInstallationCreateCommand {
 	private async Execute(options: CreateOptions): Promise<void> {
 		const loaded = resolveApiCredentials({
 			token: options.token,
+			alias: options.alias,
 			workspace: this.workspace,
 		});
 		if (!loaded.success) {
@@ -72,6 +75,7 @@ export class ThemeApiInstallationCreateCommand {
 			apiBaseUrl: baseUrl,
 			publicApiToken: config.publicApiToken,
 			storeId: config.storeId,
+			credential: loaded,
 			verbose: options.v,
 			extraHeaders,
 		});
@@ -124,6 +128,7 @@ export class ThemeApiInstallationCreateCommand {
 			"Base theme variant; letters only, first letter uppercase (e.g. Clothing)",
 		);
 		addThemeApiTokenOption(createCmd);
+		createCmd.addOption(authAliasOption());
 		addHiddenThemeApiUrlOption(createCmd);
 		addHiddenThemeApiHeaderOption(createCmd);
 		createCmd

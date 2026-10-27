@@ -6,6 +6,7 @@ import { CliError, runAction } from "../../../../cli-action";
 import { CliInteraction } from "../../../../cli-interaction";
 import { CliLogger } from "../../../../cli-logger";
 import { confirmOrAbort } from "../../../../interactivity";
+import { authAliasOption } from "../../../auth/cli/auth-cli-options";
 import { resolveThemeIdOrFail } from "../../theme-id-resolver";
 import { ThemeWorkspaceConfigManager } from "../../theme-workspace-config-manager";
 import {
@@ -35,6 +36,7 @@ type PullOptions = {
 	installationId?: string;
 	published?: boolean;
 	token?: string;
+	alias?: string;
 	apiUrl?: string;
 	header?: string[];
 	v: boolean;
@@ -52,6 +54,7 @@ export class ThemeApiPullCommand {
 	private async Execute(options: PullOptions, command: Command): Promise<void> {
 		const loaded = resolveApiCredentials({
 			token: options.token,
+			alias: options.alias,
 			workspace: this.workspace,
 		});
 		if (!loaded.success) {
@@ -73,6 +76,7 @@ export class ThemeApiPullCommand {
 			apiBaseUrl: baseUrl,
 			publicApiToken: config.publicApiToken,
 			storeId: config.storeId,
+			credential: loaded,
 			verbose: options.v,
 			extraHeaders,
 		});
@@ -146,10 +150,9 @@ export class ThemeApiPullCommand {
 				// Records that these local files came from the Public API, so an FTP
 				// push refuses to upload them to a different kind of theme.
 				lastSync: "api",
-				"theme-api": {
-					...config,
-					themeId: persistedThemeId,
-				},
+				// Only the theme id: the credential lives in credentials.json, and this
+				// folder must never get a copy of it back.
+				"theme-api": { themeId: persistedThemeId },
 			});
 		}
 		const manifestPath = path.join(cwd, "manifest.json");
@@ -180,6 +183,7 @@ export class ThemeApiPullCommand {
 			);
 		addThemePublishedOption(pullCmd);
 		addThemeApiTokenOption(pullCmd);
+		pullCmd.addOption(authAliasOption());
 		addHiddenThemeApiUrlOption(pullCmd);
 		addHiddenThemeApiHeaderOption(pullCmd);
 		pullCmd

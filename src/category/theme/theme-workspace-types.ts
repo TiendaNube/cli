@@ -2,40 +2,41 @@ import { CliError } from "../../cli-action";
 import { parseInstallationsList } from "./api/theme-api-response-parsers";
 import type { ThemeFtpConfig } from "./ftp/theme-ftp-config";
 
-export type ThemeManagement = "ftp" | "api";
-
 /** Which command family last wrote the local files. */
 export type ThemeSyncFamily = "ftp" | "api";
 
+/** Resolved Public API credentials for one run, wherever they came from. */
 export type ThemeApiConfig = {
 	publicApiToken: string;
 	storeId: string;
-	/** Storefront base URL (saved by `theme authorize`) for preview links. */
+	/** Storefront base URL, used for preview links. */
 	storeUrl?: string;
 	themeId?: string;
 	apiBaseUrl?: string;
 };
 
+/**
+ * The `theme-api` section of `.nuvem`. A linked folder keeps only `themeId`;
+ * the token fields and `apiBaseUrl` are the legacy inline credential, read
+ * until the folder is migrated to an alias.
+ */
+export type ThemeApiWorkspaceSection = Partial<ThemeApiConfig>;
+
 export type ThemeWorkspaceDocument = {
-	/**
-	 * Which family was configured most recently. Advisory only — the loaders
-	 * resolve on the presence of the section they need, so a workspace holding
-	 * both `theme-api` and `theme-ftp` can use both command families. Still
-	 * written so that an older CLI, which does gate on this, keeps working.
-	 */
-	themeManagement?: ThemeManagement;
+	/** The `credentials.json` identity this folder is linked to. */
+	alias?: string;
 	/**
 	 * Which family last pulled the local files. Read by the push commands to
 	 * refuse uploading a tree that came from the other family.
 	 */
 	lastSync?: ThemeSyncFamily;
 	"theme-ftp"?: ThemeFtpConfig;
-	"theme-api"?: ThemeApiConfig;
+	"theme-api"?: ThemeApiWorkspaceSection;
 };
 
 export function resolveThemeId(
 	cliThemeId: string | undefined,
-	themeApi: ThemeApiConfig | undefined,
+	themeApi: ThemeApiWorkspaceSection | undefined,
 ): string | null {
 	const fromCli = cliThemeId?.trim();
 	if (fromCli) {

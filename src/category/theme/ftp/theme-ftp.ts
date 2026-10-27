@@ -1,8 +1,8 @@
 import type { Command } from "commander";
+import { AuthFtpCommand } from "../../auth/commands/auth-ftp";
 import { ThemeFtpDiffCommand } from "./commands/theme-ftp-diff";
 import { ThemeFtpPullCommand } from "./commands/theme-ftp-pull";
 import { ThemeFtpPushCommand } from "./commands/theme-ftp-push";
-import { ThemeFtpSetupCommand } from "./commands/theme-ftp-setup";
 import { ThemeFtpWatchCommand } from "./commands/theme-ftp-watch";
 
 export class ThemeFtpCommands {
@@ -10,10 +10,11 @@ export class ThemeFtpCommands {
 	Bind(theme: Command): void {
 		const ftp = theme
 			.command("ftp")
-			.description(
-				"Legacy FTP theme sync (configure store FTP credentials and sync files)",
-			);
-		new ThemeFtpSetupCommand().Bind(ftp);
+			.description("Legacy FTP theme sync for classic themes");
+		new AuthFtpCommand().Bind(ftp, {
+			name: "setup",
+			deprecatedFor: "auth ftp",
+		});
 		new ThemeFtpPullCommand().Bind(ftp);
 		new ThemeFtpDiffCommand().Bind(ftp);
 		new ThemeFtpPushCommand().Bind(ftp);

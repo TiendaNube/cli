@@ -12,6 +12,7 @@ Both `nuvemshop` and `tiendanube` run the same CLI. Examples below use `nuvemsho
 - [Installation](#installation)
 - [Quick start](#quick-start)
 - [Commands](#commands)
+  - [Authentication](#authentication)
   - [Theme, FTP](#theme-ftp)
   - [End-to-end example: FTP workflow](#end-to-end-example-ftp-workflow)
   - [Theme, Fork (Public API)](#theme-fork-public-api)
@@ -26,7 +27,7 @@ Both `nuvemshop` and `tiendanube` run the same CLI. Examples below use `nuvemsho
 
 ## Requirements
 
-- **Node.js** 24.15 or newer.
+- **Node.js** 24.22.1 or newer.
 
 ## Installation
 
@@ -55,11 +56,11 @@ npx --package=@tiendanube/cli tiendanube --help
 ## Quick start
 
 1. Create a folder for your theme and open a terminal there.
-2. **Set up a sync mode** (see [CLI Official Documentation](https://nuvemshop.dev/themes/developer-tools/cli/getting-started) to choose):
-   - **FTP:** run `nuvemshop theme ftp setup` (FTP credentials and store URL).
-   - **Fork (Public API):** run `nuvemshop theme authorize` (sign in via the browser and paste the token).
+2. **Sign in** for the sync mode you need (see [CLI Official Documentation](https://nuvemshop.dev/themes/developer-tools/cli/getting-started) to choose):
+   - **FTP:** run `nuvemshop auth ftp` (FTP credentials and store URL).
+   - **Fork (Public API):** run `nuvemshop auth login` (sign in via the browser and paste the token).
 
-   You can run **both** in the same folder — they are not exclusive. That is useful even for a classic theme, since the theme management commands (`theme list`, `theme create`, `theme publish`, `theme delete`) exist only in the Fork family.
+   The credential is saved once for your user on this machine, under an alias, and the current folder is linked to it (pass `--no-link` to skip that). In another folder, run `nuvemshop auth link --alias <alias>` instead — no browser, no password; a folder that is not linked at all uses the default credential, the first one you stored. One alias can hold **both** credentials for the same store. That is useful even for a classic theme, since the theme management commands (`theme list`, `theme create`, `theme publish`, `theme delete`) exist only in the Fork family.
 3. **Download the theme** (required before `push` or `watch`, so the local folder mirrors the remote state):
    - **FTP:** `tiendanube theme ftp pull`.
    - **Fork:** find the theme id with `tiendanube theme list`, then run `tiendanube theme pull --theme-id <id>`. The id is saved as the default in `.nuvem`, so later commands do not need `--theme-id` again. If you do not have a theme yet, create one first with `tiendanube theme create --base-theme "ipanema" --title "<title>"` and use the id it prints.
@@ -73,26 +74,51 @@ For a full examples, see [End-to-end example: Fork workflow](#end-to-end-example
 
 ## Commands
 
-### Theme (FTP)
+### Authentication
+
+Credentials belong to your user on this machine, not to a folder. Each store gets an **alias**, and a theme folder's `.nuvem` only names the alias it uses, so a second folder for the same store needs no new sign-in.
 
 | Command | Description |
-|--------|-------------|
-| `theme ftp setup` | Configure FTP and store URL |
-| `theme ftp pull` | Download theme files from FTP |
-| `theme ftp diff` | Show what a push would change, without uploading |
-| `theme ftp push` | Upload local files to FTP |
-| `theme ftp watch` | Watch files, sync to FTP, optionally reload the storefront in a browser |
+|---------|-------------|
+| `auth login` | Sign in to a store via the browser (or `--token` for CI) and store its Public API credential |
+| `auth ftp` | Store the FTP credentials of a classic theme, tested before they are saved |
+| `auth link` | Link the current folder to a stored credential |
+| `auth default` | Choose the stored credential used in folders that are not linked to one |
+| `auth list` | List stored credentials and check that each one still works |
+| `auth remove` | Delete a stored credential |
 
-Run `nuvemshop theme --help` (or `tiendanube theme --help`) to list subcommands.
+**Picking a credential.** Every theme command accepts **`--alias <alias>`** to use a stored credential for that run, whichever folder you are in. Without it, the CLI uses, in order: `--token` (Public API commands only; nothing is read or saved), `--alias`, the `NUVEMSHOP_CLI_ALIAS` (or `TIENDANUBE_CLI_ALIAS`) environment variable, the alias the folder is linked to, a credential stored inside `.nuvem` by an older CLI version, and finally the **default credential**. The first credential you store becomes the default, and `auth default` changes it; it is used only in a folder that names no credential of its own, and it never writes a `.nuvem` there. Passing `--token` together with `--alias` is an error — pass only one; `--token` with the environment variable set is fine, and `--token` wins. When the store or the FTP server refuses a stored credential, the error names its alias and the command that signs in again.
 
-#### `theme ftp setup`
+**Where it lives.** One file per user, next to the [usage data setting](#anonymous-usage-data), written with permissions for your user only:
 
-**Required:** `--ftp-server`, `--ftp-username`, `--ftp-password`, `--store-url`
+| OS | Location |
+| --- | --- |
+| Linux | `$XDG_CONFIG_HOME/tiendanube-cli/credentials.json`, or `~/.config/tiendanube-cli/credentials.json` |
+| macOS | `~/.config/tiendanube-cli/credentials.json` |
+| Windows | `%APPDATA%\tiendanube-cli\credentials.json` |
 
-**Optional:** `-y` (skip non-empty directory warning), `-v` (verbose FTP)
+It holds your stores' access tokens and FTP passwords in plain text: do not share it, and do not copy it into a project. A folder set up by an older CLI version, with the credential inside `.nuvem`, keeps working; the first command you run there moves the credential into this file and leaves only the alias in `.nuvem`.
+
+#### `auth login`
+
+**Default:** opens your browser (macOS, Linux, or Windows). Sign in, then **paste the token** the page shows when prompted. The CLI checks the token against the Public API, stores it, and links the current folder.
+
+**Optional:** **`--alias <alias>`** (name for the credential; by default it is derived from the store's domain, e.g. `my-store` for `my-store.lojavirtualnuvem.com.br`), **`--token <token>`** (the same string you would paste after the browser step; **skips the browser and the prompt**, typical for scripts or CI — it must be the **full** value from the page, not only the raw API access token), **`--no-link`** (store the credential without linking the current folder), **`-v`** (verbose HTTP).
+
+Signing in again to a store that is already stored refreshes its token and keeps its alias. When an FTP-only credential has the same storefront URL, the Public API credential joins it. Nothing is saved when the token does not work. The CLI never asks about the alias or the folder: the current folder is always linked, unless you pass `--no-link`.
 
 ```bash
-nuvemshop theme ftp setup \
+nuvemshop auth login --token "<token-from-authorize-page>"
+```
+
+#### `auth ftp`
+
+**Required:** `--ftp-server`, `--ftp-username`, `--ftp-password`, `--store-url` (prompted for when missing, the password hidden)
+
+**Optional:** `--alias <alias>` (by default derived from the store URL), `--no-link` (store the credential without linking the current folder), `-v` (verbose FTP)
+
+```bash
+nuvemshop auth ftp \
   --ftp-server ftp.nuvemshop.com.br \
   --ftp-username my_username \
   --ftp-password my_password \
@@ -101,9 +127,63 @@ nuvemshop theme ftp setup \
 
 > **Tip:** Find your FTP credentials in the [FTP Workflow Official Documentation](https://nuvemshop.dev/themes/developer-tools/cli/ftp-workflow).
 
-`theme ftp setup` writes **`.nuvem`** with FTP settings and your store URL. It is **obfuscated, not encrypted**. It does not remove Public API credentials already in the file, and the Fork commands keep working alongside it — see [Theme Fork (Public API)](#theme-fork-public-api).
+The connection is tested first, and nothing is saved when it fails. When a stored credential already has the same storefront URL, the FTP credentials join it, so one alias serves both the Public API and FTP commands.
 
-Do not commit or share it. Add `.nuvem` to `.gitignore`.
+#### `auth link`
+
+**Required:** `--alias <alias>` (prompted for when missing)
+
+**Optional:** `-v` (verbose)
+
+Writes the alias into the folder's `.nuvem`, so both the Public API and the FTP commands work there with whatever credentials the alias holds. Each stored credential is checked first; one that no longer works, or cannot be checked, is reported as a warning with the command that renews it, and the folder is linked anyway. It never signs in and never asks for a secret. A folder that held a credential of its own stops holding it.
+
+```bash
+mkdir second-theme && cd second-theme
+nuvemshop auth link --alias my-store
+```
+
+#### `auth default`
+
+**Required:** `--alias <alias>` (prompted for when missing)
+
+Makes that stored credential the default: the one used in any folder that is not linked to a credential and holds none of its own, when no `--alias` or environment variable is given. It never touches a folder.
+
+```bash
+nuvemshop auth default --alias my-store
+```
+
+#### `auth list`
+
+**Optional:** `--json` (machine-readable output), `--no-verify` (do not contact the servers)
+
+Prints a table of every stored credential: its alias, the storefront host and store id, which credentials it holds (`API`, `FTP`, or both) and whether each one still works — `ok`, `rejected` (the server refused it; the command prints how to sign in again), or `unreachable` (the server could not be asked) — and when it was last used. All checks run at once. A `>` marks the alias the current folder uses, `(default)` marks the default credential, and a line below the table says where this folder's credential comes from. In a color terminal the status is colored; piped output is plain text. Tokens and passwords are never printed, not even in `--json`.
+
+```text
+   ALIAS               STORE                                        CREDENTIALS          LAST USED
+>  my-store (default)  my-store.lojavirtualnuvem.com.br #1234567    API ok, FTP ok       today
+   classic-store       classic.lojavirtualnuvem.com.br              FTP rejected         3 days ago
+```
+
+#### `auth remove`
+
+**Required:** `--alias <alias>` (prompted for when missing)
+
+**Optional:** `--api` / `--ftp` (remove only that credential and keep the rest), `-y` (skip confirmation)
+
+Folders linked to a removed alias stop authenticating until you run `auth login` or `auth link` there. Removing the default credential leaves no default until you choose one with `auth default`.
+
+### Theme (FTP)
+
+| Command | Description |
+|--------|-------------|
+| `theme ftp pull` | Download theme files from FTP |
+| `theme ftp diff` | Show what a push would change, without uploading |
+| `theme ftp push` | Upload local files to FTP |
+| `theme ftp watch` | Watch files, sync to FTP, optionally reload the storefront in a browser |
+
+Run `nuvemshop theme --help` (or `tiendanube theme --help`) to list subcommands.
+
+Credentials come from [`auth ftp`](#auth-ftp). Every command below also accepts **`--alias <alias>`** to use another stored credential for one run.
 
 #### `theme ftp pull` 
 
@@ -144,9 +224,9 @@ If you close the Puppeteer storefront tab, FTP watching continues; the CLI logs 
 A realistic session, from a fresh folder to start modifying the theme using FTP commands.
 
 ```bash
-# 1. Create a folder and ftp setup the CLI
+# 1. Create a folder and sign in with the store's FTP credentials
 mkdir my-theme && cd my-theme
-nuvemshop theme ftp setup --ftp-server "<ftp-server>" --ftp-username "<ftp-username>" --ftp-password "<ftp-password>" --store-url "<store-url>"
+nuvemshop auth ftp --ftp-server "<ftp-server>" --ftp-username "<ftp-username>" --ftp-password "<ftp-password>" --store-url "<store-url>"
 
 # 2. Pull the files locally; this is required before push/watch
 nuvemshop theme ftp pull 
@@ -166,14 +246,13 @@ nuvemshop theme ftp push
 
 Use these commands when syncing a **sections-based theme** via the **Public API**.
 
-**Flow:** `theme authorize` → `theme list` / **`theme create`** → `theme pull` / **`theme diff`** / `theme push` / `theme watch` → **`theme preview`** for a storefront preview link → **`theme clone`** to duplicate a theme → **`theme fork`** to set **fork** (full theme paths on push) → **`theme publish`** when the theme should become **productive** (the live theme for the store). Use **`theme delete`** to remove a theme (destructive).
+**Flow:** `auth login` → `theme list` / **`theme create`** → `theme pull` / **`theme diff`** / `theme push` / `theme watch` → **`theme preview`** for a storefront preview link → **`theme clone`** to duplicate a theme → **`theme fork`** to set **fork** (full theme paths on push) → **`theme publish`** when the theme should become **productive** (the live theme for the store). Use **`theme delete`** to remove a theme (destructive).
 
 > [!NOTE]
 > The Fork workflow (Public API) is available only for sectionable themes (e.g., **Ipanema**).
 
 | Command | Description |
 |---------|-------------|
-| `theme authorize` | Authorize the CLI via browser or `--token` for CI |
 | `theme list` | List the themes available for the current store |
 | `theme pull` | Download all files from a theme |
 | `theme current` | Print the default theme ID |
@@ -191,25 +270,13 @@ Use these commands when syncing a **sections-based theme** via the **Public API*
 | `theme publish` | Make the theme live (productive) |
 
 
-**`.nuvem`:** Same file as FTP, **it's obfuscated, not encrypted**. Do not commit it.
+Credentials come from [`auth login`](#auth-login). Every command below also accepts **`--alias <alias>`** (use another stored credential for one run) and **`--token <token>`** (authenticate with a token from the authorize page for one run, reading and saving nothing).
 
-It holds the FTP block, the API block, or **both** — and both command families work from the same directory, so you can run `theme list` or `theme create` while syncing a classic theme over FTP. Each family needs only its own credentials: an API command that finds no API block tells you to run `theme authorize`, it does not declare the directory an FTP-only one.
+**`.nuvem`:** the same file as FTP. It names the alias the folder uses and keeps the theme id saved by `theme pull`; it holds no credential. Do not commit it all the same — a folder last used by an older CLI version may still have one inside until a command runs there.
+
+The same alias can hold the Public API and the FTP credentials of a store, and both command families then work from the same directory, so you can run `theme list` or `theme create` while syncing a classic theme over FTP. Each family needs only its own credential: an API command on an alias with FTP credentials alone tells you to run `auth login`.
 
 To keep the two from mixing, the CLI records which family last pulled, and a push refuses a tree that came from the other one — uploading a sections-based theme to a classic one (or the reverse) would overwrite it with the wrong kind of files. Run the matching `pull` first, or pass `--force` to upload anyway; the confirmation says when `--force` is doing that. `watch` refuses outright, since it pushes on every save. A workspace that has never pulled — a fresh clone from git, for example — is not blocked.
-
-#### `theme authorize`
-
-**Default:** opens your default browser (macOS, Linux, or Windows). Sign in, then **paste the token** the page shows when prompted. The CLI saves the configuration locally.
-
-**Optional:** **`--token <token>`** — same string you would paste after the browser step; **skips the browser and the prompt** (typical for scripts or CI). **`--token`** must be the **full** value from the page (JSON with `store_id` and `access_token`, Base64-encoded), not only the raw API access token.
-
-**Optional:** **`-y`** (skip non-empty directory warning), **`-v`** (verbose HTTP).
-
-If verification fails, you’ll see an error after the file is written — fix the token or API settings and run again.
-
-```bash
-nuvemshop theme authorize --token "<token-from-authorize-page>" -y
-```
 
 #### `theme list`
 
@@ -379,9 +446,9 @@ nuvemshop theme publish
 A realistic session, from a fresh folder to publishing a new theme. Replace `<id-from-output>` with the id printed by `theme create`.
 
 ```bash
-# 1. Create a folder and authorize the CLI (browser flow)
+# 1. Create a folder and sign in (browser flow); in later folders use `auth link`
 mkdir my-theme && cd my-theme
-nuvemshop theme authorize
+nuvemshop auth login
 
 # 2a. Either list existing themes and pick one
 nuvemshop theme list
@@ -411,7 +478,7 @@ nuvemshop theme performance
 nuvemshop theme publish -y
 ```
 
-For CI or scripts, swap step 1 for `nuvemshop theme authorize --token "<token>"` to skip the browser entirely.
+For CI or scripts, swap step 1 for `nuvemshop auth login --token "<token>"` to skip the browser entirely, or pass `--token "<token>"` to each command so nothing is stored on the runner.
 
 ### Skills
 

@@ -3,6 +3,11 @@ import path from "node:path";
 import { Client, FileType } from "basic-ftp";
 import { readdirpPromise } from "readdirp";
 import { CliLogger } from "../../../cli-logger";
+import { withNextSteps } from "../../auth/cli/auth-messages";
+import {
+	type RunCredential,
+	refusedCredentialStep,
+} from "../../auth/domain/auth-credential-source";
 import type { ThemeFtpClientConfig } from "./theme-ftp-client-config";
 import type { ThemeFtpClientResult } from "./theme-ftp-client-result";
 import type { ThemeFtpDiffResult } from "./theme-ftp-diff-result";
@@ -20,7 +25,11 @@ export class ThemeFtpClient {
 	private FTP_MAX_RETRIES = 3;
 	private FTP_RETRY_BASE_DELAY = 500; // ms; exponential backoff base for transient FTP errors
 
-	public constructor(config: ThemeFtpClientConfig) {
+	/** `credential` lets a refused login (FTP 530) name the alias and how to repair it. */
+	public constructor(
+		config: ThemeFtpClientConfig,
+		private readonly credential?: RunCredential,
+	) {
 		this.config = config;
 	}
 
@@ -474,9 +483,16 @@ export class ThemeFtpClient {
 			} catch (err) {
 				errorMessage = err instanceof Error ? err.message : String(err);
 				if (attempt >= this.FTP_MAX_RETRIES || !this.isRetryableError(err)) {
+					const loginRefused = (err as { code?: unknown }).code === 530;
 					return {
 						success: false,
-						errorMessage: errorMessage,
+						errorMessage:
+							loginRefused && this.credential
+								? withNextSteps(
+										errorMessage,
+										refusedCredentialStep("ftp", this.credential),
+									)
+								: errorMessage,
 					} as ThemeFtpClientResult;
 				}
 				const backoff =

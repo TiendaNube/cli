@@ -8,7 +8,8 @@ export const ftpCmdMocks = {
 				config: { ftp: Record<string, unknown>; storeUrl: string };
 		  }
 		| { success: false; error: string },
-	save: vi.fn(),
+	/** Records the options each `TryLoad` received, e.g. `--alias`. */
+	tryLoad: vi.fn(),
 	markPulled: vi.fn(),
 	/** Which family last pulled; undefined means unrecorded, which is allowed. */
 	lastSync: undefined as "api" | "ftp" | undefined,

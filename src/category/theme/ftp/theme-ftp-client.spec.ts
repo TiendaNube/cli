@@ -247,6 +247,34 @@ describe("ThemeFtpClient", () => {
 		}
 	});
 
+	it("names the refused alias and how to sign in again on FTP 530", async () => {
+		ftpMocks.access.mockRejectedValueOnce(
+			Object.assign(new Error("530 Login incorrect."), { code: 530 }),
+		);
+		const client = new ThemeFtpClient(baseConfig, {
+			source: "workspace-alias",
+			alias: "acme",
+		});
+		const result = await client.Test();
+		expect(result.success).toBe(false);
+		expect(result.errorMessage).toMatch(
+			/^530 Login incorrect\.\n {2}→ The FTP server refused the credential "acme"\. Sign in again: \S+ auth ftp --alias acme$/,
+		);
+		expect(ftpMocks.access).toHaveBeenCalledOnce();
+	});
+
+	it("adds no credential hint to FTP errors other than 530", async () => {
+		ftpMocks.access.mockRejectedValueOnce(
+			Object.assign(new Error("550 No such file."), { code: 550 }),
+		);
+		const client = new ThemeFtpClient(baseConfig, {
+			source: "alias-flag",
+			alias: "acme",
+		});
+		const result = await client.Test();
+		expect(result.errorMessage).toBe("550 No such file.");
+	});
+
 	it("DownloadAll succeeds when remote tree is empty", async () => {
 		const client = new ThemeFtpClient(baseConfig);
 		const result = await client.DownloadAll();

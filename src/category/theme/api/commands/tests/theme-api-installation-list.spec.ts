@@ -1,5 +1,6 @@
 import "./theme-api-command-test-mocks";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ThemeApiClient } from "../../theme-api-client";
 import { ThemeApiInstallationListCommand } from "../theme-api-installation-list";
 import { parseWithTail, programWithThemeCommand } from "./helpers";
 import type { StdoutWriteSpy } from "./stdout-write-spy";
@@ -28,6 +29,68 @@ describe("ThemeApiInstallationListCommand", () => {
 		});
 		await parseWithTail(program, ["theme", "list"]);
 		expect(themeApiCmdMocks.error).toHaveBeenCalledWith("no config");
+	});
+
+	it("authenticates with the stored credential named by --alias", async () => {
+		themeApiCmdMocks.identities = [
+			{
+				alias: "acme",
+				type: "store",
+				createdAt: "2026-01-01T00:00:00.000Z",
+				data: { storeId: "77" },
+				tokens: { api: { accessToken: "acme-token" } },
+			},
+		];
+		themeApiCmdMocks.listInstallations.mockResolvedValue({ installations: [] });
+		const program = programWithThemeCommand((c) => {
+			new ThemeApiInstallationListCommand().Bind(c);
+		});
+		await parseWithTail(program, ["theme", "list", "--alias", "acme"]);
+		expect(themeApiCmdMocks.error).not.toHaveBeenCalled();
+		expect(ThemeApiClient).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				publicApiToken: "acme-token",
+				storeId: "77",
+				credential: expect.objectContaining({
+					source: "alias-flag",
+					alias: "acme",
+				}),
+			}),
+		);
+		expect(themeApiCmdMocks.touchIdentity).toHaveBeenCalledWith("acme");
+	});
+
+	it("refuses --token together with --alias before building a client", async () => {
+		vi.mocked(ThemeApiClient).mockClear();
+		const program = programWithThemeCommand((c) => {
+			new ThemeApiInstallationListCommand().Bind(c);
+		});
+		await parseWithTail(program, [
+			"theme",
+			"list",
+			"--token",
+			"anything",
+			"--alias",
+			"acme",
+		]);
+		expect(themeApiCmdMocks.error).toHaveBeenCalledWith(
+			expect.stringContaining("--token and --alias both name a credential"),
+		);
+		expect(ThemeApiClient).not.toHaveBeenCalled();
+		expect(themeApiCmdMocks.listInstallations).not.toHaveBeenCalled();
+	});
+
+	it("migrates a legacy inline token on the way", async () => {
+		themeApiCmdMocks.tryLoadResult = {
+			success: true,
+			config: { publicApiToken: "t", storeId: "1" },
+		};
+		themeApiCmdMocks.listInstallations.mockResolvedValue({ installations: [] });
+		const program = programWithThemeCommand((c) => {
+			new ThemeApiInstallationListCommand().Bind(c);
+		});
+		await parseWithTail(program, ["theme", "list"]);
+		expect(themeApiCmdMocks.migrateLegacy).toHaveBeenCalledTimes(1);
 	});
 
 	it("writes JSON when --json", async () => {

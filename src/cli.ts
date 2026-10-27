@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import updateNotifier from "update-notifier";
 import packageJson from "../package.json" with { type: "json" };
+import { AuthCommands } from "./category/auth/auth";
 import { NubesdkCommands } from "./category/nubesdk/nubesdk";
 import { SkillsCommands } from "./category/skills/skills";
 import { skillsHelpFooter } from "./category/skills/skills-help";
@@ -27,6 +28,7 @@ program.addHelpText("after", () => skillsHelpFooter());
 
 // NubeSDK commands are hidden until NubeSDK support on Core Storefronts is publicly announced
 // new NubesdkCommands().Bind(program);
+new AuthCommands().Bind(program);
 new ThemeCommands().Bind(program);
 new SkillsCommands().Bind(program);
 new TelemetryCommands().Bind(program);

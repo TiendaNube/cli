@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { Command } from "commander";
 import { describe, expect, it } from "vitest";
+import { AuthCommands } from "../../auth/auth";
 import {
 	canPushRelativePathWhenNotForked,
 	isThemeCodeFileForNonForkedTheme,
@@ -30,13 +31,18 @@ function skillBody(name: string): string {
  * Built from the same `Bind` calls `src/cli.ts` makes, so the expectations come
  * from the code rather than from a list somebody has to remember to update.
  */
-function commandSurface(): Map<string, Set<string>> {
+function commandSurface(): {
+	flags: Map<string, Set<string>>;
+	deprecated: Set<string>;
+} {
 	const program = new Command();
 	program.option("-y, --yes", "Non-interactive", false);
+	new AuthCommands().Bind(program);
 	new ThemeCommands().Bind(program);
 	new SkillsCommands().Bind(program);
 
 	const surface = new Map<string, Set<string>>();
+	const deprecated = new Set<string>();
 	const walk = (command: Command, prefix: string[], inherited: string[]) => {
 		const own = command.options.flatMap((option) =>
 			[option.long].filter((flag): flag is string => flag !== undefined),
@@ -44,23 +50,26 @@ function commandSurface(): Map<string, Set<string>> {
 		const flags = [...inherited, ...own];
 		if (prefix.length > 0) {
 			surface.set(prefix.join(" "), new Set(flags));
+			if (command.description().startsWith("Deprecated:")) {
+				deprecated.add(prefix.join(" "));
+			}
 		}
 		for (const child of command.commands) {
 			walk(child, [...prefix, child.name()], flags);
 		}
 	};
 	walk(program, [], []);
-	return surface;
+	return { flags: surface, deprecated };
 }
 
-const surface = commandSurface();
+const { flags: surface, deprecated: deprecatedCommands } = commandSurface();
 
 /**
  * Command paths that only group other commands (`theme`, `theme ftp`).
  *
  * A group followed by a word that does not extend it is an invented
- * subcommand — which is exactly how `theme ftp diff`, a command that exists on
- * no released CLI, would otherwise pass as a mention of `theme ftp`.
+ * subcommand — which is exactly how an unreleased `theme ftp <verb>` would
+ * otherwise pass as a mention of `theme ftp`.
  */
 const commandGroups = new Set<string>();
 for (const key of surface.keys()) {
@@ -212,7 +221,10 @@ describe("skills against the real command surface", () => {
 				.filter((command): command is string => command !== null),
 		);
 		for (const command of [
-			"theme authorize",
+			"auth login",
+			"auth ftp",
+			"auth link",
+			"auth list",
 			"theme list",
 			"theme pull",
 			"theme diff",
@@ -221,10 +233,21 @@ describe("skills against the real command surface", () => {
 			"theme fork",
 			"theme ftp pull",
 			"theme ftp push",
-			"theme ftp setup",
 		]) {
 			expect(cited, `no skill mentions ${command}`).toContain(command);
 		}
+	});
+
+	it("teaches no deprecated command", () => {
+		expect(deprecatedCommands.size).toBeGreaterThan(0);
+		const stale = allInvocations
+			.filter(
+				(invocation) =>
+					invocation.command !== null &&
+					deprecatedCommands.has(invocation.command),
+			)
+			.map((invocation) => `${invocation.skill}: ${invocation.command}`);
+		expect(stale).toEqual([]);
 	});
 });
 

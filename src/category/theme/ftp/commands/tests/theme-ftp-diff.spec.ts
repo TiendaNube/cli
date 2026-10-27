@@ -48,10 +48,14 @@ describe("ThemeFtpDiffCommand", () => {
 		fs.rmSync(workspace, { recursive: true, force: true });
 	});
 
-	it("errors when configuration is not set", async () => {
+	it("reports the resolver error when no credential resolves", async () => {
+		ftpCmdMocks.tryLoadResult = {
+			success: false,
+			error: "No credentials for this folder.",
+		};
 		await run(["ftp", "diff"]);
 		expect(ftpCmdMocks.error).toHaveBeenCalledWith(
-			"Store configuration not found. Please run tiendanube theme ftp setup first.",
+			"No credentials for this folder.",
 		);
 		expect(ftpCmdMocks.computeDiff).not.toHaveBeenCalled();
 	});

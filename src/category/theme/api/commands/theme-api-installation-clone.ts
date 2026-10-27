@@ -5,6 +5,7 @@ import { CliInteraction } from "../../../../cli-interaction";
 import { CliLogger } from "../../../../cli-logger";
 import { assertConfirmable, confirmOrAbort } from "../../../../interactivity";
 import { writeJsonOutput } from "../../../../json-output";
+import { authAliasOption } from "../../../auth/cli/auth-cli-options";
 import { resolveThemeIdOrFail } from "../../theme-id-resolver";
 import {
 	formatThemeLabel,
@@ -31,6 +32,7 @@ type CloneOptions = {
 	title?: string;
 	published?: boolean;
 	token?: string;
+	alias?: string;
 	apiUrl?: string;
 	header?: string[];
 	json: boolean;
@@ -48,6 +50,7 @@ export class ThemeApiInstallationCloneCommand {
 	): Promise<void> {
 		const loaded = resolveApiCredentials({
 			token: options.token,
+			alias: options.alias,
 			workspace: this.workspace,
 		});
 		if (!loaded.success) {
@@ -69,6 +72,7 @@ export class ThemeApiInstallationCloneCommand {
 			apiBaseUrl: baseUrl,
 			publicApiToken: config.publicApiToken,
 			storeId: config.storeId,
+			credential: loaded,
 			verbose: options.v,
 			extraHeaders,
 		});
@@ -141,6 +145,7 @@ export class ThemeApiInstallationCloneCommand {
 			);
 		addThemePublishedOption(cloneCmd);
 		addThemeApiTokenOption(cloneCmd);
+		cloneCmd.addOption(authAliasOption());
 		addHiddenThemeApiUrlOption(cloneCmd);
 		addHiddenThemeApiHeaderOption(cloneCmd);
 		cloneCmd
